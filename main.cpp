@@ -58,6 +58,62 @@ constexpr int PST_KNIGHT[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50
 };
 
+constexpr int PST_BISHOP[64] = {
+    -20,-10,-10,-10,-10,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5, 10, 10,  5,  0,-10,
+    -10,  5,  5, 10, 10,  5,  5,-10,
+    -10,  0, 10, 10, 10, 10,  0,-10,
+    -10, 10, 10, 10, 10, 10, 10,-10,
+    -10,  5,  0,  0,  0,  0,  5,-10,
+    -20,-10,-10,-10,-10,-10,-10,-20
+};
+
+constexpr int PST_ROOK[64] = {
+     0,  0,  0,  5,  5,  0,  0,  0,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+     5, 10, 10, 10, 10, 10, 10,  5,
+     0,  0,  0,  0,  0,  0,  0,  0
+};
+
+constexpr int PST_QUEEN[64] = {
+    -20,-10,-10, -5, -5,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5,  5,  5,  5,  0,-10,
+     -5,  0,  5,  5,  5,  5,  0, -5,
+      0,  0,  5,  5,  5,  5,  0, -5,
+    -10,  5,  5,  5,  5,  5,  0,-10,
+    -10,  0,  5,  0,  0,  0,  0,-10,
+    -20,-10,-10, -5, -5,-10,-10,-20
+};
+
+constexpr int PST_KING[64] = {
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -20,-30,-30,-40,-40,-30,-30,-20,
+    -10,-20,-20,-20,-20,-20,-20,-10,
+     20, 20,  0,  0,  0,  0, 20, 20,
+     20, 30, 10,  0,  0, 10, 30, 20
+};
+
+constexpr int PST_KING_ENDGAME[64] = {
+    -50,-40,-30,-20,-20,-30,-40,-50,
+    -30,-20,-10,  0,  0,-10,-20,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-30,  0,  0,  0,  0,-30,-30,
+    -50,-30,-30,-30,-30,-30,-30,-50
+};
+
+
 
 // LSB and MSB helpers
 inline int lsb(u64 bb) { return __builtin_ctzll(bb); }
@@ -127,18 +183,54 @@ Board fenUnloader(const std::string& fen) {
         else {
             u64 bit = 1ULL << square;
             switch(c) {
-                case 'P': board.pawns_white   |= bit; break;
-                case 'N': board.knights_white |= bit; break;
-                case 'B': board.bishops_white |= bit; break;
-                case 'R': board.rooks_white   |= bit; break;
-                case 'Q': board.queens_white  |= bit; break;
-                case 'K': board.king_white    |= bit; break;
-                case 'p': board.pawns_black   |= bit; break;
-                case 'n': board.knights_black |= bit; break;
-                case 'b': board.bishops_black |= bit; break;
-                case 'r': board.rooks_black   |= bit; break;
-                case 'q': board.queens_black  |= bit; break;
-                case 'k': board.king_black    |= bit; break;
+                case 'P': 
+                    board.pawns_white   |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'N': 
+                    board.knights_white |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'B': 
+                    board.bishops_white |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'R': 
+                    board.rooks_white   |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'Q': 
+                    board.queens_white  |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'K': 
+                    board.king_white    |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'p': 
+                    board.pawns_black   |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'n': 
+                    board.knights_black |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'b': 
+                    board.bishops_black |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'r': 
+                    board.rooks_black   |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'q': 
+                    board.queens_black  |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'k': 
+                    board.king_black    |= bit; 
+                    board.all_black |= bit;
+                    break;
             }
             square++;
         }
@@ -171,6 +263,38 @@ u64 getKnightAttacks(u64 bit) {
     attacks |= (bit >> 10) & ~(FILE_H | FILE_G);
     attacks |= (bit >> 6)  & ~(FILE_A | FILE_B);
     return attacks;
+}
+
+u64 getPawnAttacks(u64 bit, Color side, Board& board) {
+    Board board;
+    u64 attacks = 0ULL;
+    attacks |= (bit << 8);
+    u64 captures = 0ULL;
+         
+    if (bit & (side == WHITE) & RANK_2) {
+        std::cout << "White pawn hasn't moved" << std::endl;
+        attacks |= (bit << 16);
+        captures |= (bit <<  7), (bit << 9);
+
+    } else if (bit & (side != WHITE) & RANK_7) {
+        std::cout << "Black pawn hasn't moved" << std::endl;
+        attacks |= (bit >> 16);
+        captures |= (bit >> 7), (bit >> 9);
+    };
+
+    if (side == WHITE) {
+        captures |= (bit << 7), (bit << 9);
+    } else {
+        captures |= (bit >> 7), (bit >> 9);
+    };
+    
+    if (captures & board.all_black) {
+        attacks |= captures;
+    } else if (captures & board.all_white) {
+        attacks |= captures;
+    };
+    
+    return attacks
 }
 
 // Masks
@@ -288,6 +412,8 @@ bool isKingInCheck(Color side, const Board& board) {
 
 
 
+
+
 std::vector<Move> generateKnightMoves(Board& board, Color side) {
   std::vector<Move> moves;
 
@@ -335,6 +461,28 @@ std::vector<Move> generateKingMoves(const Board& board, Color side) {
 
 
 
+std::vector<Move> generatePawnMoves(Board& board, Color side) {
+  std::vector<Move> moves;
+
+  u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
+  u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+  while (knights) {
+        int fromSq = lsb(pawns);
+        pawns &= pawns - 1;
+        
+        u64 attacks = getKnightAttacks(1ULL << fromSq);
+        attacks &= ~ownPieces; // can't capture own pieces
+        
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            moves.push_back({fromSq, toSq});
+        }
+    }
+    
+    return moves;
+}
 
 int main() {
     Board board = fenUnloader(testFen);
@@ -344,6 +492,8 @@ int main() {
     initMasks();
     // initRookAttacks();
     // initBishopAttacks();
+
+    std::cout << Move << endl;
 
     int sq = 27; // d4
     
