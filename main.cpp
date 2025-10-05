@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <bits/stdc++.h>
+#include <cstdlib>
+#include <ctime>
 
 
 using u64 = uint64_t;
@@ -148,8 +150,6 @@ struct Board {
 
 std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-std::string testFen = "4k3/8/8/8/8/8/PPPPRPPP/RNBQKBNR w KQkq - 0 1";
-
 u64 RookAttackTable[64][4096];   // max 2^12 = 4096
 u64 BishopAttackTable[64][512];  // max 2^9  = 512
 
@@ -238,6 +238,25 @@ Board fenUnloader(const std::string& fen) {
     return board;
 }
 
+u64* getTypeBB(int pos, Board& board) {
+    u64 mask = 1ULL << pos;
+    if (mask & board.pawns_white)  return &board.pawns_white;
+    if (mask & board.rooks_white)  return &board.rooks_white;
+    if (mask & board.knights_white) return &board.knights_white;
+    if (mask & board.bishops_white) return &board.bishops_white;
+    if (mask & board.queens_white)  return &board.queens_white;
+    if (mask & board.king_white)   return &board.king_white;
+
+    if (mask & board.pawns_black)  return &board.pawns_black;
+    if (mask & board.rooks_black)  return &board.rooks_black;
+    if (mask & board.knights_black) return &board.knights_black;
+    if (mask & board.bishops_black) return &board.bishops_black;
+    if (mask & board.queens_black)  return &board.queens_black;
+    if (mask & board.king_black)   return &board.king_black;
+
+    return nullptr;
+}
+
 // Piece attacks
 u64 getKingAttacks(u64 bit) {
     u64 attacks = 0ULL;
@@ -266,36 +285,46 @@ u64 getKnightAttacks(u64 bit) {
 }
 
 u64 getPawnAttacks(u64 bit, Color side, Board& board) {
-    Board board;
     u64 attacks = 0ULL;
-    attacks |= (bit << 8);
+    u64 occ = board.all_white | board.all_black;
+    attacks |= (bit << 8) & ~occ;
     u64 captures = 0ULL;
          
-    if (bit & (side == WHITE) & RANK_2) {
-        std::cout << "White pawn hasn't moved" << std::endl;
+    if ((bit & RANK_2) && side == WHITE) {
         attacks |= (bit << 16);
-        captures |= (bit <<  7), (bit << 9);
+        
 
-    } else if (bit & (side != WHITE) & RANK_7) {
-        std::cout << "Black pawn hasn't moved" << std::endl;
+    } else if ((bit & RANK_7) && side != WHITE) {
         attacks |= (bit >> 16);
-        captures |= (bit >> 7), (bit >> 9);
+        
     };
 
     if (side == WHITE) {
-        captures |= (bit << 7), (bit << 9);
+        captures |= (bit << 7) & ~FILE_H; 
+        captures |= (bit << 9) & ~FILE_A;
     } else {
-        captures |= (bit >> 7), (bit >> 9);
+        captures |= (bit >> 7);
+        captures |= (bit >> 9);
     };
     
-    if (captures & board.all_black) {
-        attacks |= captures;
-    } else if (captures & board.all_white) {
+    if (side == WHITE && (captures & board.all_black)) {
+        while (captures) {
+            int toSq = lsb(captures);
+            u64 toSqBB = 1ULL << toSq;
+           
+            if (toSqBB & board.all_black) {
+                attacks |= toSqBB;
+            } 
+            captures &= ~(1ULL << toSq);
+        }
+    } else if (side == BLACK && (captures & board.all_white)) {
         attacks |= captures;
     };
     
-    return attacks
-}
+    std::cout << "attacks:";
+    print_bitboard(attacks);
+    return attacks;
+};
 
 // Masks
 u64 maskRook(int sq) {
@@ -369,9 +398,16 @@ u64 getBishopAttacks(int sq, u64 occ) { return bishopAttacksOnTheFly(sq, occ); }
 u64 getQueenAttacks(int sq, u64 occ) { return getRookAttacks(sq, occ) | getBishopAttacks(sq, occ); }
 
 // Move / capture helpers
-void movePiece(u64 &pieceBB, int fromSq, int toSq) {
+void movePiece(u64 &pieceBB, int fromSq, int toSq, Color side,  Board& board) {
     pieceBB &= ~(1ULL << fromSq);
     pieceBB |=  (1ULL << toSq);
+    if (side == WHITE) {
+        board.all_white &= ~(1ULL << fromSq);
+        board.all_white |= (1ULL << toSq);
+    } else {
+        board.all_black &= ~(1ULL << fromSq);
+        board.all_black |= (1ULL << toSq);
+    }
 }
 
 void capturePiece(u64 &pieceBB, int sq) {
@@ -414,8 +450,7 @@ bool isKingInCheck(Color side, const Board& board) {
 
 
 
-std::vector<Move> generateKnightMoves(Board& board, Color side) {
-  std::vector<Move> moves;
+std::vector<Move> generateKnightMoves(Board& board, Color side, std::vector<Move>& moves) {
 
   u64 knights = (side == WHITE) ? board.knights_white : board.knights_black;
   u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
@@ -437,8 +472,7 @@ std::vector<Move> generateKnightMoves(Board& board, Color side) {
     return moves;
 }
 
-std::vector<Move> generateKingMoves(const Board& board, Color side) {
-  std::vector<Move> moves;
+std::vector<Move> generateKingMoves(const Board& board, Color side, std::vector<Move>& moves) {
 
   u64 king = (side == WHITE) ? board.king_white : board.king_black;
   u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
@@ -455,23 +489,20 @@ std::vector<Move> generateKingMoves(const Board& board, Color side) {
       moves.push_back({fromSq, toSq});
   }
     
-    
+   
   return moves;
 }
 
-
-
-std::vector<Move> generatePawnMoves(Board& board, Color side) {
-  std::vector<Move> moves;
+std::vector<Move> generatePawnMoves(Board& board, Color side, std::vector<Move>& moves) {
 
   u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
   u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
 
-  while (knights) {
+  while (pawns) {
         int fromSq = lsb(pawns);
         pawns &= pawns - 1;
         
-        u64 attacks = getKnightAttacks(1ULL << fromSq);
+        u64 attacks = getPawnAttacks((1ULL << fromSq), side, board);
         attacks &= ~ownPieces; // can't capture own pieces
         
         while (attacks) {
@@ -484,29 +515,75 @@ std::vector<Move> generatePawnMoves(Board& board, Color side) {
     return moves;
 }
 
+std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
+    
+    if (moves.empty()) return "no moves";
+
+    int length = moves.size();
+
+    int idx = rand() % length;
+    Move m = moves[idx];
+
+    std::string selectedMove = "from " + std::to_string(m.from) + " to " + std::to_string(m.to);
+
+
+    u64* pieceBB = getTypeBB(m.from, board);
+    if (!pieceBB) {
+        return selectedMove + " (no piece at from)";
+    }
+
+    movePiece(*pieceBB, m.from, m.to, side, board); 
+
+    board.all_white = board.pawns_white | board.knights_white | board.bishops_white |
+        board.rooks_white | board.queens_white | board.king_white;
+    board.all_black = board.pawns_black | board.knights_black | board.bishops_black |
+        board.rooks_black | board.queens_black | board.king_black;
+
+    return selectedMove;
+} 
+
+
 int main() {
-    Board board = fenUnloader(testFen);
-    
-    
+    for (int r; r < 5; r++) {
+        std::string testFen = "8/8/3ppp2/3pPp2/3ppp2/8/8/8 w KQkq - 0 1";
+        Board board = fenUnloader(startFen);
+        std::vector<Move> moves;
+        srand(time(0)); // seed random
+        
+        Color side = WHITE;
 
-    initMasks();
-    // initRookAttacks();
-    // initBishopAttacks();
+        initMasks();
+        initRookAttacks();
+        initBishopAttacks();
+        generatePawnMoves(board, WHITE, moves);
+        generateKnightMoves(board, WHITE, moves);
+        generateKingMoves(board, WHITE, moves);
+        std::cout << "All white:";
+        print_bitboard(board.all_white);
+        std::cout << "All black:";
+        print_bitboard(board.all_black);
 
-    std::cout << Move << endl;
+        std::string moveStr = randomMove(moves, side, board);
+        std::cout << "Random move: " << moveStr << "\n";
+        print_bitboard(board.all_white);
+        moves = {};
 
-    int sq = 27; // d4
-    
-    //print_bitboard(getRookAttacks(sq, occ));
-    //print_bitboard(getBishopAttacks(sq, occ));
-    //print_bitboard(getQueenAttacks(sq, occ));
+        int sq = 27; // d4
+        
+        //print_bitboard(getRookAttacks(sq, occ));
+        //print_bitboard(getBishopAttacks(sq, occ));
+        //print_bitboard(getQueenAttacks(sq, occ));
 
-    if(isKingInCheck(WHITE, board)) {
-        std::cout << "White king is in check!\n";
-    };
-    if(isKingInCheck(BLACK, board)) {
-        std::cout << "Black king is in check!\n";
-    };
+        if (isKingInCheck(WHITE, board)) {
+            std::cout << "White king is in check!\n";
+        };
 
+        if (isKingInCheck(BLACK, board)) {
+            std::cout << "Black king is in check!\n";
+        };
+        
+        std::string w;
+        std::cin >> w;
+    }   
     return 0;
 }
