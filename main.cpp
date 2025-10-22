@@ -257,6 +257,46 @@ void print_bitboard(u64 bb) {
     std::cout << "\n";
 }
 
+std::string numToStr(int num) {
+    std::string str;
+    u64 numBB = 1ULL << num;
+    if (numBB & FILE_A) {
+        str = "a";
+    } else if (numBB & FILE_B) {
+        str = "b";
+    } else if (numBB & FILE_C) {
+        str = "c";
+    } else if (numBB & FILE_D) {
+        str = "d";
+    } else if (numBB & FILE_E) {
+        str = "e";
+    } else if (numBB & FILE_F) {
+        str = "f";
+    } else if (numBB & FILE_G) {
+        str = "g";
+    } else if (numBB & FILE_H) {
+        str = "h";
+    }
+    if (numBB & RANK_1) {
+        str += "1";
+    } else if (numBB & RANK_2) {
+        str += "2";
+    } else if (numBB & RANK_3) {
+        str += "3";
+    } else if (numBB & RANK_4) {
+        str += "4";
+    } else if (numBB & RANK_5) {
+        str += "5";
+    } else if (numBB & RANK_6) {
+        str += "6";
+    } else if (numBB & RANK_7) {
+        str += "7";
+    } else if (numBB & RANK_8) {
+        str += "8";
+    }
+    return str;
+}
+
 // FEN -> Board
 Board fenUnloader(const std::string& fen) {
     int square = 56;
@@ -546,7 +586,7 @@ void initBishopAttacks() {
     }
 }
 
-void undoMove(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board, u64 capturedPiece) {
+void undoMoveEval(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board, u64 capturedPiece) {
     // Move piece back
     pieceBB &= ~(1ULL << toSq);
     pieceBB |=  (1ULL << fromSq);
@@ -565,44 +605,6 @@ void undoMove(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board, u64 
 }
 
 u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq, occ) | getBishopAttackMagics(sq, occ); }
-
-
-u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board) {
-    u64 captured = 0ULL;
-
-    if (side == WHITE) {
-        if ((1ULL << toSq) & board.all_black) {
-            u64* captureBB = getTypeBB(toSq, board);
-            if (captureBB) {
-                captured = *captureBB & (1ULL << toSq);
-                *captureBB &= ~(1ULL << toSq);
-            }
-        }
-    } else {
-        if ((1ULL << toSq) & board.all_white) {
-            u64* captureBB = getTypeBB(toSq, board);
-            if (captureBB) {
-                captured = *captureBB & (1ULL << toSq);
-                *captureBB &= ~(1ULL << toSq);
-            }
-        }
-    }
-
-    // move the piece
-    pieceBB &= ~(1ULL << fromSq);
-    pieceBB |= (1ULL << toSq);
-
-    // update all_white/all_black
-    board.all_white = board.pawns_white | board.knights_white | board.bishops_white |
-                      board.rooks_white | board.queens_white | board.king_white;
-    board.all_black = board.pawns_black | board.knights_black | board.bishops_black |
-                      board.rooks_black | board.queens_black | board.king_black;
-
-    return captured;
-}
-
-
-
 
 // Check for king in check
 bool isKingInCheck(Color side, const Board& board) {
@@ -637,404 +639,38 @@ bool isKingInCheck(Color side, const Board& board) {
 }
 
 
-std::vector<Move> generateKnightMoves(Board& board, Color side, std::vector<Move>& moves) {
+u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board) {
+    u64 captured = 0ULL;
 
-  u64 knights = (side == WHITE) ? board.knights_white : board.knights_black;
-  u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
-
-  while (knights) {
-        int fromSq = lsb(knights);
-        knights &= knights - 1;
-        
-        u64 attacks = getKnightAttacks(1ULL << fromSq);
-        attacks &= ~ownPieces; // can't capture own pieces
-        
-        while (attacks) {
-            int toSq = lsb(attacks);
-            attacks &= attacks - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
-            // std::cout << "move: " << fromSq << " → " << toSq << "N" "\n";
+    if (side == WHITE) {
+        if ((1ULL << toSq) & board.all_black) {
+            u64* captureBB = getTypeBB(toSq, board);
+            if (captureBB) {
+                captured = *captureBB & (1ULL << toSq);
+                *captureBB &= ~(1ULL << toSq);
+            }
         }
-    }
-    
-    return moves;
-}
-
-std::vector<Move> generateKingMoves(Board& board, Color side, std::vector<Move>& moves) {
-    u64 king = (side == WHITE) ? board.king_white : board.king_black;
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
-    u64 allPieces = board.all_white | board.all_black;
-
-    if (king) {
-
-        int fromSq = lsb(king);
-        u64 attacks = getKingAttacks(1ULL << fromSq);
-        attacks &= ~ownPieces;
-
-        // Normal king moves
-        while (attacks) {
-            int toSq = lsb(attacks);
-            attacks &= attacks - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL,  NONE));
-            // std::cout << "move: " << fromSq << " → " << toSq << "Kk" << "\n";
-        }
-
-        // --- Castling ---
-        if (side == WHITE) {
-            // White kingside (E1 -> G1, rook H1 -> F1)
-            if (canCastleKingside_white &&
-                !(allPieces & ((1ULL << 5) | (1ULL << 6))) &&   // F1, G1 empty
-                !isKingInCheck(WHITE, board)) {
-                
-                // Temporarily move king through F1 and G1 to check safety
-                Board temp = board;
-                movePiece(temp.king_white, 4, 5, WHITE, temp);
-                if (!isKingInCheck(WHITE, temp)) {
-                    movePiece(temp.king_white, 5, 6, WHITE, temp);
-                    if (!isKingInCheck(WHITE, temp))
-                        moves.push_back(mkMove(4, 6, 7, 5, 0ULL, NONE)); // from2=7 (rook), to2=5 (rook move)
-                        // std::cout << "move: " << fromSq << " → " << "K" << "\n";
-                }
-            }
-
-            // White queenside (E1 -> C1, rook A1 -> D1)
-            if (canCastleQueenside_white &&
-                !(allPieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // B1, C1, D1 empty
-                !isKingInCheck(WHITE, board)) {
-                
-                Board temp = board;
-                movePiece(temp.king_white, 4, 3, WHITE, temp);
-                if (!isKingInCheck(WHITE, temp)) {
-                    movePiece(temp.king_white, 3, 2, WHITE, temp);
-                    if (!isKingInCheck(WHITE, temp))
-                        moves.push_back(mkMove(4, 2, 0, 3, 0)); // from2=0 (rook), to2=3 (rook move)
-                        // std::cout << "move: " << fromSq << " → " << "K" << "\n";
-                }
-            }
-        } else {
-            // Black kingside (E8 -> G8, rook H8 -> F8)
-            if (canCastleKingside_black &&
-                !(allPieces & ((1ULL << 61) | (1ULL << 62))) &&  // F8, G8 empty
-                !isKingInCheck(BLACK, board)) {
-                
-                Board temp = board;
-                movePiece(temp.king_black, 60, 61, BLACK, temp);
-                if (!isKingInCheck(BLACK, temp)) {
-                    movePiece(temp.king_black, 61, 62, BLACK, temp);
-                    if (!isKingInCheck(BLACK, temp))
-                        moves.push_back(mkMove(60, 62, 63, 61, 0));
-                        // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-                }
-            }
-
-            // Black queenside (E8 -> C8, rook A8 -> D8)
-            if (canCastleQueenside_black &&
-                !(allPieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
-                !isKingInCheck(BLACK, board)) {
-                
-                Board temp = board;
-                movePiece(temp.king_black, 60, 59, BLACK, temp);
-                if (!isKingInCheck(BLACK, temp)) {
-                    movePiece(temp.king_black, 59, 58, BLACK, temp);
-                    if (!isKingInCheck(BLACK, temp))
-                        moves.push_back(mkMove(60, 58, 56, 59, 0));
-                        // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-                }
+    } else {
+        if ((1ULL << toSq) & board.all_white) {
+            u64* captureBB = getTypeBB(toSq, board);
+            if (captureBB) {
+                captured = *captureBB & (1ULL << toSq);
+                *captureBB &= ~(1ULL << toSq);
             }
         }
     }
 
-    return moves;
-}
+    // move the piece
+    pieceBB &= ~(1ULL << fromSq);
+    pieceBB |= (1ULL << toSq);
 
+    // update all_white/all_black
+    board.all_white = board.pawns_white | board.knights_white | board.bishops_white |
+                      board.rooks_white | board.queens_white | board.king_white;
+    board.all_black = board.pawns_black | board.knights_black | board.bishops_black |
+                      board.rooks_black | board.queens_black | board.king_black;
 
-std::vector<Move> generatePawnMoves(Board& board, Color side, std::vector<Move>& moves) {
-    u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
-    u64 empty = ~(board.all_white | board.all_black);
-   
-    while (pawns) {
-        int fromSq = lsb(pawns);
-        pawns &= pawns - 1;
-
-        u64 pushTargets = getPawnPushes(1ULL << fromSq, side, board);
-        u64 capTargets  = getPawnCaptures(1ULL << fromSq, side, board);
-        // === Handle pawn pushes ===
-        while (pushTargets) {
-            int toSq = lsb(pushTargets);
-            pushTargets &= pushTargets - 1;
-
-            // If the target square is the last rank -> promotion
-            if ((side == WHITE && (1ULL << toSq) & RANK_8) ||
-                (side == BLACK && (1ULL << toSq) & RANK_1)) {
-
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, KNIGHT));
-                std::cout << "promotion push: " << fromSq << " → " << toSq << "\n";
-
-            } else {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
-                // std::cout << "move: " << fromSq << " → " << toSq << "\n";
-            }
-        }
-
-        // === Handle captures ===
-        while (capTargets) {
-            int toSq = lsb(capTargets);
-            capTargets &= capTargets - 1;
-
-            if ((side == WHITE && (1ULL << toSq) & RANK_8) ||
-                (side == BLACK && (1ULL << toSq) & RANK_1)) {
-
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, KNIGHT));
-                std::cout << "promotion capture: " << fromSq << " → " << toSq << "\n";
-
-            } else {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
-                // std::cout << "move: " << fromSq << " → " << toSq << "\n";
-            }
-        }
-    }
-    return moves;
-}
-
-std::vector<Move> generateRookMoves(Board& board, Color side, std::vector<Move>& moves) {
-    u64 rooks = (side == WHITE) ? board.rooks_white : board.rooks_black;
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
-
-    while (rooks) {
-        u64 occ = board.all_white | board.all_black;
-        int fromSq = lsb(rooks);
-        rooks &= rooks - 1;
-
-        u64 attacks = getRookAttackMagics(fromSq, occ);
-        attacks &= ~ownPieces;
-
-        while (attacks) {
-            int toSq = lsb(attacks);
-            attacks &= attacks - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
-            // std::cout << "move: " << fromSq << " → " << "R" << "\n";
-        }
-    }
-
-    return moves;
-}
-
-std::vector<Move> generateBishopMoves(Board& board, Color side, std::vector<Move>& moves) {
-    u64 bishops = (side == WHITE) ? board.bishops_white : board.bishops_black;
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
-
-    while (bishops) {
-        u64 occ = board.all_white | board.all_black;
-        int fromSq = lsb(bishops);
-        bishops &= bishops - 1;
-
-        u64 attacks = getBishopAttackMagics(fromSq, occ);
-        attacks &= ~ownPieces;
-
-        while (attacks) {
-            int toSq = lsb(attacks);
-            attacks &= attacks - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
-            // std::cout << "move: " << fromSq << " → " << "\n";
-        }
-    }
-
-    return moves;
-}
-
-std::vector<Move> generateQueenMoves(Board& board, Color side, std::vector<Move>& moves) {
-    u64 queens = (side == WHITE) ? board.queens_white : board.queens_black;
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
-
-    
-    while (queens) {
-        u64 occ = board.all_white | board.all_black;
-        int fromSq = lsb(queens);
-        queens &= queens - 1;
-
-        u64 attacks = getQueenAttackMagics(fromSq, occ);
-        attacks &= ~ownPieces;
-
-        while (attacks) {
-            int toSq = lsb(attacks);
-            attacks &= attacks - 1;
-            Move m = mkMove(fromSq, toSq, -1, -1, 0ULL, NONE);
-            m.promotion = NONE;
-            moves.push_back(m);
-            // std::cout << "move: " << fromSq << " → " << "\n";
-            // std::cout << fromSq << "->" << toSq << std::endl;
-            
-        }
-    }
-
-    return moves;
-}
-
-int evaluate(Board& board) {
-    int score = 0;
-
-    // Material + PST bonuses
-    for (int sq = 0; sq < 64; sq++) {
-        u64 mask = 1ULL << sq;
-
-        // White pieces
-        if (board.pawns_white & mask)   score += PAWN_VALUE   + PST_PAWN[sq];
-        if (board.knights_white & mask) score += KNIGHT_VALUE + PST_KNIGHT[sq];
-        if (board.bishops_white & mask) score += BISHOP_VALUE + PST_BISHOP[sq];
-        if (board.rooks_white & mask)   score += ROOK_VALUE   + PST_ROOK[sq];
-        if (board.queens_white & mask)  score += QUEEN_VALUE  + PST_QUEEN[sq];
-        if (board.king_white & mask) {
-            // Decide midgame or endgame
-            int totalMaterial = popcount(board.pawns_white) * PAWN_VALUE
-                              + popcount(board.knights_white) * KNIGHT_VALUE
-                              + popcount(board.bishops_white) * BISHOP_VALUE
-                              + popcount(board.rooks_white) * ROOK_VALUE
-                              + popcount(board.queens_white) * QUEEN_VALUE;
-            if (totalMaterial > 1400) score += KING_VALUE + PST_KING[sq]; // midgame
-            else score += KING_VALUE + PST_KING_ENDGAME[sq]; // endgame
-        }
-
-        // Black pieces (flip PST)
-        if (board.pawns_black & mask)   score -= PAWN_VALUE   + PST_PAWN[63 - sq];
-        if (board.knights_black & mask) score -= KNIGHT_VALUE + PST_KNIGHT[63 - sq];
-        if (board.bishops_black & mask) score -= BISHOP_VALUE + PST_BISHOP[63 - sq];
-        if (board.rooks_black & mask)   score -= ROOK_VALUE   + PST_ROOK[63 - sq];
-        if (board.queens_black & mask)  score -= QUEEN_VALUE  + PST_QUEEN[63 - sq];
-        if (board.king_black & mask) {
-            int totalMaterial = popcount(board.pawns_black) * PAWN_VALUE
-                              + popcount(board.knights_black) * KNIGHT_VALUE
-                              + popcount(board.bishops_black) * BISHOP_VALUE
-                              + popcount(board.rooks_black) * ROOK_VALUE
-                              + popcount(board.queens_black) * QUEEN_VALUE;
-            if (totalMaterial > 1400) score -= KING_VALUE + PST_KING[63 - sq]; // midgame
-            else score -= KING_VALUE + PST_KING_ENDGAME[63 - sq]; // endgame
-        }
-    }
-
-
-    return score;
-}
-
-std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
-    
-    if (moves.empty()) return "no moves";
-
-    int length = moves.size();
-
-    int idx = rand() % length;
-    Move m = moves[idx];
-
-    std::string selectedMove = "from " + std::to_string(m.from) + " to " + std::to_string(m.to);
-
-
-    u64* pieceBB = getTypeBB(m.from, board);
-    if (!pieceBB) {
-        return selectedMove + " (no piece at from)";
-    }
-
-    movePiece(*pieceBB, m.from, m.to, side, board); 
-
-    board.all_white = 
-        board.pawns_white | board.knights_white | board.bishops_white |
-        board.rooks_white | board.queens_white | board.king_white;
-    board.all_black = 
-        board.pawns_black | board.knights_black | board.bishops_black |
-        board.rooks_black | board.queens_black | board.king_black;
-
-    return selectedMove;
-} 
-
-void printBoardAsLetters(const Board& board) {
-    for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
-        for (int file = 0; file < 8; ++file) {
-            int sq = rank * 8 + file;
-            char c = '.';
-
-            u64 mask = 1ULL << sq;
-
-            if (mask & board.pawns_white)   c = 'P';
-            else if (mask & board.knights_white) c = 'N';
-            else if (mask & board.bishops_white) c = 'B';
-            else if (mask & board.rooks_white)   c = 'R';
-            else if (mask & board.queens_white)  c = 'Q';
-            else if (mask & board.king_white)    c = 'K';
-            else if (mask & board.pawns_black)   c = 'p';
-            else if (mask & board.knights_black) c = 'n';
-            else if (mask & board.bishops_black) c = 'b';
-            else if (mask & board.rooks_black)   c = 'r';
-            else if (mask & board.queens_black)  c = 'q';
-            else if (mask & board.king_black)    c = 'k';
-
-            std::cout << c << " ";
-        }
-        std::cout << "\n";
-    }
-}
-
-std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
-    if (moves.empty()) return "no moves";
-    Board boardCopy = board;
-
-    int length = moves.size();
-    int bestMoveEval = 0;
-    int from;
-    int to;
-    std::cout << bestMoveEval << std::endl;
-    static int lastFrom = -1, lastTo = -1;
-
-
-    //start
-    for (int i = 0; i < length; i++) {
-        Move m = moves[i];
-        u64* pieceBB = getTypeBB(m.from, boardCopy);
-        
-        u64 capture = 0ULL;
-
-        movePiece(*pieceBB, m.from, m.to, side, boardCopy);
-        int eval = evaluate(boardCopy);
-        
-        if (m.from == lastTo && m.to == lastFrom) {
-            eval -= 20; // discourage reversals
-        }
-        
-        std::cout << eval << ", ";
-        if ((!bestMoveEval) || (eval > bestMoveEval)) {
-            bestMoveEval = eval;
-            from = m.from;
-            to = m.to;
-        } 
-        std::cout << bestMoveEval << std::endl;
-        undoMove(*pieceBB, m.from, m.to, side, boardCopy, capture);
-        lastFrom = from;
-        lastTo = to;
-
-    }
-    //end
-
-    std::string selectedMove = "from " + std::to_string(from) + " to " + std::to_string(to);
-
-
-    u64* pieceBB = getTypeBB(from, board);
-    if (!pieceBB) {
-        return selectedMove + " (no piece at from)";
-    }
-
-    movePiece(*pieceBB, from, to, side, board); 
-
-    board.all_white = 
-        board.pawns_white | board.knights_white | board.bishops_white |
-        board.rooks_white | board.queens_white | board.king_white;
-    board.all_black = 
-        board.pawns_black | board.knights_black | board.bishops_black |
-        board.rooks_black | board.queens_black | board.king_black;
-
-    return selectedMove;
+    return captured;
 }
 
 // Struct to store undo info
@@ -1096,6 +732,8 @@ void check_board_integrity(const Board &board, int square, const char* tag = "")
     //     print_bitboard(board.pawns_white);
     // }
 }
+
+
 
 // Undo a move
 void undoMove(Move m, Board& board, Color side, Undo undo) {
@@ -1231,7 +869,6 @@ Undo makeMove(Move m, Board& board, Color side) {
     }
 
     if (isKingInCheck(side, board)) {
-        std::cout << "King in check!";
         undoMove(m, board, side, undo);
         undo.to = -1;
         return undo;
@@ -1253,9 +890,526 @@ Undo makeMove(Move m, Board& board, Color side) {
 
 
 
+
+std::vector<Move> generateKnightMoves(Board& board, Color side, std::vector<Move>& moves) {
+
+  u64 knights = (side == WHITE) ? board.knights_white : board.knights_black;
+  u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+  while (knights) {
+        int fromSq = lsb(knights);
+        knights &= knights - 1;
+        
+        u64 attacks = getKnightAttacks(1ULL << fromSq);
+        attacks &= ~ownPieces; // can't capture own pieces
+        
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
+            // std::cout << "move: " << fromSq << " → " << toSq << "N" "\n";
+        }
+    }
+    
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+
+
+    return moves;
+}
+
+std::vector<Move> generateKingMoves(Board& board, Color side, std::vector<Move>& moves) {
+    u64 king = (side == WHITE) ? board.king_white : board.king_black;
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+    u64 allPieces = board.all_white | board.all_black;
+
+    if (king) {
+
+        int fromSq = lsb(king);
+        u64 attacks = getKingAttacks(1ULL << fromSq);
+        attacks &= ~ownPieces;
+
+        // Normal king moves
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL,  NONE));
+            // std::cout << "move: " << fromSq << " → " << toSq << "Kk" << "\n";
+        }
+
+        // --- Castling ---
+        if (side == WHITE) {
+            // White kingside (E1 -> G1, rook H1 -> F1)
+            if (canCastleKingside_white &&
+                !(allPieces & ((1ULL << 5) | (1ULL << 6))) &&   // F1, G1 empty
+                !isKingInCheck(WHITE, board)) {
+                
+                // Temporarily move king through F1 and G1 to check safety
+                Board temp = board;
+                movePiece(temp.king_white, 4, 5, WHITE, temp);
+                if (!isKingInCheck(WHITE, temp)) {
+                    movePiece(temp.king_white, 5, 6, WHITE, temp);
+                    if (!isKingInCheck(WHITE, temp))
+                        moves.push_back(mkMove(4, 6, 7, 5, 0ULL, NONE)); // from2=7 (rook), to2=5 (rook move)
+                        // std::cout << "move: " << fromSq << " → " << "K" << "\n";
+                }
+            }
+
+            // White queenside (E1 -> C1, rook A1 -> D1)
+            if (canCastleQueenside_white &&
+                !(allPieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // B1, C1, D1 empty
+                !isKingInCheck(WHITE, board)) {
+                
+                Board temp = board;
+                movePiece(temp.king_white, 4, 3, WHITE, temp);
+                if (!isKingInCheck(WHITE, temp)) {
+                    movePiece(temp.king_white, 3, 2, WHITE, temp);
+                    if (!isKingInCheck(WHITE, temp))
+                        moves.push_back(mkMove(4, 2, 0, 3, 0)); // from2=0 (rook), to2=3 (rook move)
+                        // std::cout << "move: " << fromSq << " → " << "K" << "\n";
+                }
+            }
+        } else {
+            // Black kingside (E8 -> G8, rook H8 -> F8)
+            if (canCastleKingside_black &&
+                !(allPieces & ((1ULL << 61) | (1ULL << 62))) &&  // F8, G8 empty
+                !isKingInCheck(BLACK, board)) {
+                
+                Board temp = board;
+                movePiece(temp.king_black, 60, 61, BLACK, temp);
+                if (!isKingInCheck(BLACK, temp)) {
+                    movePiece(temp.king_black, 61, 62, BLACK, temp);
+                    if (!isKingInCheck(BLACK, temp))
+                        moves.push_back(mkMove(60, 62, 63, 61, 0));
+                        // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
+                }
+            }
+
+            // Black queenside (E8 -> C8, rook A8 -> D8)
+            if (canCastleQueenside_black &&
+                !(allPieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
+                !isKingInCheck(BLACK, board)) {
+                
+                Board temp = board;
+                movePiece(temp.king_black, 60, 59, BLACK, temp);
+                if (!isKingInCheck(BLACK, temp)) {
+                    movePiece(temp.king_black, 59, 58, BLACK, temp);
+                    if (!isKingInCheck(BLACK, temp))
+                        moves.push_back(mkMove(60, 58, 56, 59, 0));
+                        // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
+                }
+            }
+        }
+    }
+
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+
+
+        return moves;
+    }
+
+
+std::vector<Move> generatePawnMoves(Board& board, Color side, std::vector<Move> moves) {
+    
+    u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
+    u64 empty = ~(board.all_white | board.all_black);
+   
+    while (pawns) {
+        int fromSq = lsb(pawns);
+        pawns &= pawns - 1;
+
+        u64 pushTargets = getPawnPushes(1ULL << fromSq, side, board);
+        u64 capTargets  = getPawnCaptures(1ULL << fromSq, side, board);
+        // === Handle pawn pushes ===
+        while (pushTargets) {
+            std::cout << "hu\n";
+            int toSq = lsb(pushTargets);
+            pushTargets &= pushTargets - 1;
+
+            // If the target square is the last rank -> promotion
+            if ((side == WHITE && (1ULL << toSq) & RANK_8) ||
+                (side == BLACK && (1ULL << toSq) & RANK_1)) {
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, KNIGHT));
+                std::cout << "promotion push: " << fromSq << " → " << toSq << "\n";
+
+            } else {
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
+                // std::cout << "move: " << fromSq << " → " << toSq << "\n";
+            }
+        }
+
+        // === Handle captures ===
+        while (capTargets) {
+            int toSq = lsb(capTargets);
+            capTargets &= capTargets - 1;
+
+            if ((side == WHITE && (1ULL << toSq) & RANK_8) ||
+                (side == BLACK && (1ULL << toSq) & RANK_1)) {
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, KNIGHT));
+                std::cout << "promotion capture: " << fromSq << " → " << toSq << "\n";
+
+            } else {
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
+                // std::cout << "move: " << fromSq << " → " << toSq << "\n";
+            }
+        }
+    }
+
+    
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+    std::cout << moves.size();
+
+
+    return moves;
+}
+
+std::vector<Move> generateRookMoves(Board& board, Color side, std::vector<Move>& moves) {
+    u64 rooks = (side == WHITE) ? board.rooks_white : board.rooks_black;
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+    while (rooks) {
+        u64 occ = board.all_white | board.all_black;
+        int fromSq = lsb(rooks);
+        rooks &= rooks - 1;
+
+        u64 attacks = getRookAttackMagics(fromSq, occ);
+        attacks &= ~ownPieces;
+
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
+            // std::cout << "move: " << fromSq << " → " << "R" << "\n";
+        }
+    }
+
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+
+
+    return moves;
+}
+
+std::vector<Move> generateBishopMoves(Board& board, Color side, std::vector<Move>& moves) {
+    u64 bishops = (side == WHITE) ? board.bishops_white : board.bishops_black;
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+    while (bishops) {
+        u64 occ = board.all_white | board.all_black;
+        int fromSq = lsb(bishops);
+        bishops &= bishops - 1;
+
+        u64 attacks = getBishopAttackMagics(fromSq, occ);
+        attacks &= ~ownPieces;
+
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            moves.push_back(mkMove(fromSq, toSq, -1, -1, 0ULL, NONE));
+            // std::cout << "move: " << fromSq << " → " << "\n";
+        }
+    }
+
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+
+
+    return moves;
+}
+
+std::vector<Move> generateQueenMoves(Board& board, Color side, std::vector<Move>& moves) {
+    u64 queens = (side == WHITE) ? board.queens_white : board.queens_black;
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+    
+    while (queens) {
+        u64 occ = board.all_white | board.all_black;
+        int fromSq = lsb(queens);
+        queens &= queens - 1;
+
+        u64 attacks = getQueenAttackMagics(fromSq, occ);
+        attacks &= ~ownPieces;
+
+        while (attacks) {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            Move m = mkMove(fromSq, toSq, -1, -1, 0ULL, NONE);
+            m.promotion = NONE;
+            moves.push_back(m);
+            // std::cout << "move: " << fromSq << " → " << "\n";
+            // std::cout << fromSq << "->" << toSq << std::endl;
+            
+        }
+    }
+
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board)) {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    moves = legalMoves;
+
+
+    return moves;
+}
+
+int evaluate(Board& board, Color side, std::vector<Move>& moves) {
+    // === Generate all legal moves for the current side ===
+    moves.clear();
+    generatePawnMoves(board, side, moves);
+    generateKnightMoves(board, side, moves);
+    generateBishopMoves(board, side, moves);
+    generateRookMoves(board, side, moves);
+    generateQueenMoves(board, side, moves);
+    generateKingMoves(board, side, moves);
+
+    // Filter only legal moves (that don't leave king in check)
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        bool illegal = isKingInCheck(side, board);
+        std::cout << illegal;
+        undoMove(m, board, side, u);
+        if (!illegal) legalMoves.push_back(m);
+    }
+
+    Color oppSide = (side == WHITE) ? BLACK : WHITE;
+    // === Generate all legal moves for the opposite side ===
+    moves.clear();
+    generatePawnMoves(board, oppSide, moves);
+    generateKnightMoves(board, oppSide, moves);
+    generateBishopMoves(board, oppSide, moves);
+    generateRookMoves(board, oppSide, moves);
+    generateQueenMoves(board, oppSide, moves);
+    generateKingMoves(board, oppSide, moves);
+
+    // Filter only legal moves (that don't leave king in check)
+    std::vector<Move> oppLegalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, oppSide);
+        bool illegal = isKingInCheck(oppSide, board);
+        std::cout << illegal;
+        undoMove(m, board, oppSide, u);
+        if (!illegal) oppLegalMoves.push_back(m);
+    }
+
+    // === Checkmate and stalemate detection ===
+    if (legalMoves.empty()) {
+        if (isKingInCheck(side, board)) {
+            // Checkmate for the current side
+            return (side == WHITE) ? -1000000 : 1000000;
+        } else {
+            // Stalemate
+            return 0;
+        }
+    }
+
+    // === Checkmate and stalemate detection ===
+    if (oppLegalMoves.empty()) {
+        if (isKingInCheck(oppSide, board)) {
+            // Checkmate for the current side
+            return (side == WHITE) ? 1000000 : -1000000;
+        } else {
+            // Stalemate
+            return 0;
+        }
+    }
+
+    // === If we reach here, it's a normal position ===
+    // You can now use your usual evaluation (material + positional)
+    int score = 0;
+
+    // --- Material count ---
+    score += popcount(board.pawns_white)   * PAWN_VALUE;
+    score += popcount(board.knights_white) * KNIGHT_VALUE;
+    score += popcount(board.bishops_white) * BISHOP_VALUE;
+    score += popcount(board.rooks_white)   * ROOK_VALUE;
+    score += popcount(board.queens_white)  * QUEEN_VALUE;
+
+    score -= popcount(board.pawns_black)   * PAWN_VALUE;
+    score -= popcount(board.knights_black) * KNIGHT_VALUE;
+    score -= popcount(board.bishops_black) * BISHOP_VALUE;
+    score -= popcount(board.rooks_black)   * ROOK_VALUE;
+    score -= popcount(board.queens_black)  * QUEEN_VALUE;
+
+    // === Add slight bonus/penalty for being in check ===
+    if (isKingInCheck(side, board)) {
+        score += (side == WHITE) ? -50 : 50;
+    }
+
+    return score;
+}
+
+
+std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
+    
+    if (moves.empty()) return "no moves";
+
+    int length = moves.size();
+
+    int idx = rand() % length;
+    Move m = moves[idx];
+
+    std::string selectedMove = "from " + std::to_string(m.from) + " to " + std::to_string(m.to);
+
+
+    u64* pieceBB = getTypeBB(m.from, board);
+    if (!pieceBB) {
+        return selectedMove + " (no piece at from)";
+    }
+
+    movePiece(*pieceBB, m.from, m.to, side, board); 
+
+    board.all_white = 
+        board.pawns_white | board.knights_white | board.bishops_white |
+        board.rooks_white | board.queens_white | board.king_white;
+    board.all_black = 
+        board.pawns_black | board.knights_black | board.bishops_black |
+        board.rooks_black | board.queens_black | board.king_black;
+
+    return selectedMove;
+} 
+
+void printBoardAsLetters(const Board& board) {
+    for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
+        for (int file = 0; file < 8; ++file) {
+            int sq = rank * 8 + file;
+            char c = '.';
+
+            u64 mask = 1ULL << sq;
+
+            if (mask & board.pawns_white)   c = 'P';
+            else if (mask & board.knights_white) c = 'N';
+            else if (mask & board.bishops_white) c = 'B';
+            else if (mask & board.rooks_white)   c = 'R';
+            else if (mask & board.queens_white)  c = 'Q';
+            else if (mask & board.king_white)    c = 'K';
+            else if (mask & board.pawns_black)   c = 'p';
+            else if (mask & board.knights_black) c = 'n';
+            else if (mask & board.bishops_black) c = 'b';
+            else if (mask & board.rooks_black)   c = 'r';
+            else if (mask & board.queens_black)  c = 'q';
+            else if (mask & board.king_black)    c = 'k';
+
+            std::cout << c << " ";
+        }
+        std::cout << "\n";
+    }
+}
+
+std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
+    if (moves.empty()) return "no moves";
+    Board boardCopy = board;
+
+    int length = moves.size();
+    int bestMoveEval = 0;
+    int from;
+    int to;
+    std::cout << bestMoveEval << std::endl;
+    static int lastFrom = -1, lastTo = -1;
+
+
+    //start
+    for (int i = 0; i < length; i++) {
+        Move m = moves[i];
+        u64* pieceBB = getTypeBB(m.from, boardCopy);
+        
+        u64 capture = 0ULL;
+
+        movePiece(*pieceBB, m.from, m.to, side, boardCopy);
+        int eval = evaluate(boardCopy, side, moves);
+        
+        if (m.from == lastTo && m.to == lastFrom) {
+            eval -= 20; // discourage reversals
+        }
+        
+        std::cout << eval << ", ";
+        if ((!bestMoveEval) || (eval > bestMoveEval)) {
+            bestMoveEval = eval;
+            from = m.from;
+            to = m.to;
+        } 
+        std::cout << bestMoveEval << std::endl;
+        undoMoveEval(*pieceBB, m.from, m.to, side, boardCopy, capture);
+        lastFrom = from;
+        lastTo = to;
+
+    }
+    //end
+
+    std::string selectedMove = "from " + std::to_string(from) + " to " + std::to_string(to);
+
+
+    u64* pieceBB = getTypeBB(from, board);
+    if (!pieceBB) {
+        return selectedMove + " (no piece at from)";
+    }
+
+    movePiece(*pieceBB, from, to, side, board); 
+
+    board.all_white = 
+        board.pawns_white | board.knights_white | board.bishops_white |
+        board.rooks_white | board.queens_white | board.king_white;
+    board.all_black = 
+        board.pawns_black | board.knights_black | board.bishops_black |
+        board.rooks_black | board.queens_black | board.king_black;
+
+    return selectedMove;
+}
+
+
+
 // Optimized alpha-beta 
 int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vector<Move> moves) {
-    if (depth == 0) return evaluate(board);
+    if (depth == 0) return evaluate(board, side, moves);
 
     moves.clear();
 
@@ -1265,23 +1419,18 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vec
     generateBishopMoves(board, side, moves);
     generateQueenMoves(board, side, moves);
     generateKingMoves(board, side, moves);
-    
-    if (moves.empty()) {
-        if (isKingInCheck(side, board)) {
-            // Checkmate
-            std::cout << "King checkmated";
-            return (side == WHITE) ? -1000000 : 1000000;
-        } else {
-            // Stalemate
-            return 0;
-        }
-    }
+
 
     if (side == WHITE) {
         int value = -1000000;
         for (auto& m : moves) {
             Undo undo = makeMove(m, board, side);
-            int score = alphaBeta(board, depth - 1, alpha, beta, BLACK, moves);
+
+            if (isKingInCheck(side, board)) {
+                undoMove(m, board, side, undo);
+                continue; // skip illegal move
+            }
+            int score = alphaBeta(board, depth - 1, alpha, beta, BLACK, std::vector<Move>());
             undoMove(m, board, side, undo);
 
             value = std::max(value, score);
@@ -1293,7 +1442,11 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vec
         int value = 1000000;
         for (auto& m : moves) {
             Undo undo = makeMove(m, board, side);
-            int score = alphaBeta(board, depth - 1, alpha, beta, WHITE, moves);
+            if (isKingInCheck(side, board)) {
+                undoMove(m, board, side, undo);
+                continue; // skip illegal move
+            }
+            int score = alphaBeta(board, depth - 1, alpha, beta, WHITE, std::vector<Move>());
             undoMove(m, board, side, undo);
 
             value = std::min(value, score);
@@ -1352,22 +1505,10 @@ Move findBestMove(Board& board, Color side, int depth) {
     
 
     for (auto& m : moves) {
-        std::cout << "ddd";
         Undo undo = makeMove(m, board, side);
-        if (undo.to == -1) {
-            std::cout << m.to << "Move not legal" << std::endl
-            continue;
-        }
         int score = alphaBeta(board, depth - 1, -1000000, 1000000,
                               (side == WHITE) ? BLACK : WHITE, moves);
         
-        if (score == 1000000) {
-            std::cout << "Black is checkmated!";
-        } else if (score == -1000000) {
-            std::cout << "White is checkmated!";
-        } else if (score == 0) {
-            std::cout << "Stalemate";
-        }
 
         undoMove(m, board, side, undo);
         
@@ -1395,6 +1536,10 @@ Move findBestMove(Board& board, Color side, int depth) {
 
 int main() {
     initMasks();
+    std::string input;
+    std::cout << "id name Main\n";
+    std::cout << "id author Me\n";
+    std::cout << "uciok\n";
 
     for (int sq = 0; sq < 64; sq++) {
         RookAttackTable[sq].resize(1ULL << rookBits[sq]);
@@ -1403,7 +1548,7 @@ int main() {
     
     std::string testFen = "NNNNNNk1/RRRRRRNR/PPPPPRPR/5P1P/8/8/8/8 w KQkq - 0 1";
 
-    Board board = fenUnloader(testFen);
+    Board board = fenUnloader(startFen);
     
     std::vector<Move> moves;
     srand(time(0)); // seed random
@@ -1422,52 +1567,71 @@ int main() {
     initRookAttacks();
     initBishopAttacks();
 
-    for (int t = 0; t < 500; t++) {
-        moves.clear();
-        generatePawnMoves(board, side, moves);
-        generateKnightMoves(board, side, moves);
-        generateKingMoves(board, side, moves);
-        generateRookMoves(board, side, moves);
-        generateBishopMoves(board, side, moves);
-        generateQueenMoves(board, side, moves);
-        
-        std::cout << "Generated moves: " << moves.size() << "\n";
-        
-        Move best = findBestMove(board, side, 1);
-        
-        std::cout << "Best move: " << best.from << " → " << best.to << "\n";
-
-    /* std::string moveStr = evalMove(moves, side, board);
-        std::cout << "Evaluted move: " << moveStr << "\n";
-        print_bitboard(board.all_white);
-        */
-        moves.clear();
-        int eval = evaluate(board);
-        std::cout << "Evalution: " << eval << "\n";
-
-        printBoardAsLetters(board);
-
-        int sq = 27; // d4
-        u64 occ = 0ULL;
-
-
-
-        if (isKingInCheck(WHITE, board)) {
-            std::cout << "White king is in check!\n";
-        };
-
-        if (isKingInCheck(BLACK, board)) {
-            std::cout << "Black king is in check!\n";
-        };
-        
-        std::string w;
-        std::cin >> w;
-        if (side == WHITE) {
-            side = BLACK;
-        } else {
-            side = WHITE;
+    while (std::getline(std::cin, input)) {
+        if (input == "isready") {
+            std::cout << "readyok\n";
+        } 
+        else if (input.rfind("position", 0) == 0) {
+            // Parse position command and set up board
         }
-        
+        else if (input.rfind("go", 0) == 0) {
+            moves.clear();
+            moves = generatePawnMoves(board, side, moves);
+            moves = generateKnightMoves(board, side, moves);
+            moves = generateKingMoves(board, side, moves);
+            moves = generateRookMoves(board, side, moves);
+            moves = generateBishopMoves(board, side, moves);
+            moves = generateQueenMoves(board, side, moves);
+            
+            std::cout << "Generated moves: " << moves.size() << "\n";
+            
+            Move best = findBestMove(board, side, 3);
+
+             /* std::string moveStr = evalMove(moves, side, board);
+            std::cout << "Evaluted move: " << moveStr << "\n";
+            print_bitboard(board.all_white);
+            */
+            moves.clear();
+            int eval = evaluate(board, side, moves);
+            std::cout << "Evalution: " << eval << "\n";
+
+            printBoardAsLetters(board);
+
+            int sq = 27; // d4
+            u64 occ = 0ULL;
+
+
+            if (eval == -1000000) {
+                std::cout << "White king is checkmated!\n";
+            } else if (eval == 1000000) {
+                std::cout << "Black king is checkmated!\n";
+            } else if (isKingInCheck(WHITE, board) || isKingInCheck(BLACK, board)) {
+                if (isKingInCheck(WHITE, board)) {
+                    std::cout << "White king is in check!\n";
+                }
+                if (isKingInCheck(BLACK, board)) {
+                    std::cout << "Black king is in check!\n";
+                }
+            }
+            std::cout << "bestmove " << numToStr(best.from) + numToStr(best.to) << std::endl;        }
+        else if (input == "quit") {
+            break;
+        }
     }
+
+    
+
+    // for (int t = 0; t < 500; t++) {
+        
+        
+    //     std::string w;
+    //     std::cin >> w;
+    //     if (side == WHITE) {
+    //         side = BLACK;
+    //     } else {
+    //         side = WHITE;
+    //     }
+        
+    // }
     return 0;
 }
