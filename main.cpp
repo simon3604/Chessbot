@@ -32,6 +32,15 @@ bool canCastleQueenside_black = true;
 std::vector<std::vector<u64>> RookAttackTable(64);
 std::vector<std::vector<u64>> BishopAttackTable(64);
 
+bool canCastleKingside_white = true; 
+bool canCastleQueenside_white = true;
+
+bool canCastleKingside_black = true; 
+bool canCastleQueenside_black = true;
+
+std::vector<std::vector<u64>> RookAttackTable(64);
+std::vector<std::vector<u64>> BishopAttackTable(64);
+
 
 u64 RookMasks[64];
 u64 BishopMasks[64];
@@ -40,6 +49,9 @@ int rookBits[64];
 int bishopBits[64];
 
 int popcount(u64 x) { return __builtin_popcountll(x); }
+
+
+
 
 
 
@@ -106,6 +118,54 @@ Board fenUnloader(const std::string& fen) {
         else {
             u64 bit = 1ULL << square;
             switch(c) {
+                case 'P': 
+                    board.pawns_white   |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'N': 
+                    board.knights_white |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'B': 
+                    board.bishops_white |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'R': 
+                    board.rooks_white   |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'Q': 
+                    board.queens_white  |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'K': 
+                    board.king_white    |= bit; 
+                    board.all_white |= bit;
+                    break;
+                case 'p': 
+                    board.pawns_black   |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'n': 
+                    board.knights_black |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'b': 
+                    board.bishops_black |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'r': 
+                    board.rooks_black   |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'q': 
+                    board.queens_black  |= bit; 
+                    board.all_black |= bit;
+                    break;
+                case 'k': 
+                    board.king_black    |= bit; 
+                    board.all_black |= bit;
+                    break;
                 case 'P': 
                     board.pawns_white   |= bit; 
                     board.all_white |= bit;
