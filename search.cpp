@@ -6,10 +6,31 @@
 #include <bits/stdc++.h>
 #include <cstdlib>
 #include <ctime>
-#include "constants.cpp"
-#include "generateMoves.cpp"
+#include "moves.h"
 
 using u64 = uint64_t;
+
+
+
+
+u64* getTypeBB(int pos, Board& board) {
+    u64 mask = 1ULL << pos;
+    if (mask & board.pawns_white)  return &board.pawns_white;
+    if (mask & board.rooks_white)  return &board.rooks_white;
+    if (mask & board.knights_white) return &board.knights_white;
+    if (mask & board.bishops_white) return &board.bishops_white;
+    if (mask & board.queens_white)  return &board.queens_white;
+    if (mask & board.king_white)   return &board.king_white;
+
+    if (mask & board.pawns_black)  return &board.pawns_black;
+    if (mask & board.rooks_black)  return &board.rooks_black;
+    if (mask & board.knights_black) return &board.knights_black;
+    if (mask & board.bishops_black) return &board.bishops_black;
+    if (mask & board.queens_black)  return &board.queens_black;
+    if (mask & board.king_black)   return &board.king_black;
+
+    return nullptr;
+}
 
 //Old makeMove function
 u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board) {
@@ -45,27 +66,6 @@ u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board) {
 
     return captured;
 }
-
-
-u64* getTypeBB(int pos, Board& board) {
-    u64 mask = 1ULL << pos;
-    if (mask & board.pawns_white)  return &board.pawns_white;
-    if (mask & board.rooks_white)  return &board.rooks_white;
-    if (mask & board.knights_white) return &board.knights_white;
-    if (mask & board.bishops_white) return &board.bishops_white;
-    if (mask & board.queens_white)  return &board.queens_white;
-    if (mask & board.king_white)   return &board.king_white;
-
-    if (mask & board.pawns_black)  return &board.pawns_black;
-    if (mask & board.rooks_black)  return &board.rooks_black;
-    if (mask & board.knights_black) return &board.knights_black;
-    if (mask & board.bishops_black) return &board.bishops_black;
-    if (mask & board.queens_black)  return &board.queens_black;
-    if (mask & board.king_black)   return &board.king_black;
-
-    return nullptr;
-}
-
 
 void check_board_integrity(const Board &board, int square, const char* tag = "") {
     u64 all = 0ULL;

@@ -6,10 +6,7 @@
 #include <bits/stdc++.h>
 #include <cstdlib>
 #include <ctime>
-#include "evaluation.cpp"
-#include "constants.cpp"
-#include "generateMoves.cpp"
-#include "search.cpp"
+#include "evaluation.h"
 
 
 using u64 = uint64_t;
@@ -23,38 +20,96 @@ using u64 = uint64_t;
 
 std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-bool canCastleKingside_white = true; 
-bool canCastleQueenside_white = true;
+std::vector<Move> generateMoves(Board &board, Color side, std::vector<Move> &moves) {
+    moves.clear();
+    
+    generateKnightMoves(board, side, moves);
+    generateKingMoves(board, side, moves);
+    generatePawnMoves(board, side, moves);
+    generateRookMoves(board, side, moves);
+    generateBishopMoves(board, side, moves);
+    generateQueenMoves(board, side, moves);
 
-bool canCastleKingside_black = true; 
-bool canCastleQueenside_black = true;
+    std::vector<Move> legalMoves;
+    for (auto &m : moves) {
+        Undo u = makeMove(m, board, side);
+        if (!isKingInCheck(side, board))
+        {
+            legalMoves.push_back(m);
+        }
+        undoMove(m, board, side, u);
+    }
+    
 
-std::vector<std::vector<u64>> RookAttackTable(64);
-std::vector<std::vector<u64>> BishopAttackTable(64);
+    // --- Castling ---
+    u64 allPieces = board.all_white | board.all_black;
+    if (side == WHITE)
+    {
+        // White kingside (E1 -> G1, rook H1 -> F1)
+        if (canCastleKingside_white &&
+            !(allPieces & ((1ULL << 5) | (1ULL << 6))) && // F1, G1 empty
+            !isKingInCheck(WHITE, board))
+        {
 
-bool canCastleKingside_white = true; 
-bool canCastleQueenside_white = true;
+            moves.push_back(mkMove(4, 6, 7, 5, 0ULL, NONE)); // from2=7 (rook), to2=5 (rook move)
+        }
 
-bool canCastleKingside_black = true; 
-bool canCastleQueenside_black = true;
+        // White queenside (E1 -> C1, rook A1 -> D1)
+        if (canCastleQueenside_white &&
+            !(allPieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // B1, C1, D1 empty
+            !isKingInCheck(WHITE, board))
+        {
 
-std::vector<std::vector<u64>> RookAttackTable(64);
-std::vector<std::vector<u64>> BishopAttackTable(64);
+            Board temp = board;
+            movePiece(temp.king_white, 4, 3, WHITE, temp);
+            if (!isKingInCheck(WHITE, temp))
+            {
+                movePiece(temp.king_white, 3, 2, WHITE, temp);
+                if (!isKingInCheck(WHITE, temp))
+                    moves.push_back(mkMove(4, 2, 0, 3, 0)); // from2=0 (rook), to2=3 (rook move)
+                                                            // std::cout << "move: " << fromSq << " → " << "K" << "\n";
+            }
+        }
+    }
+    else
+    {
+        // Black kingside (E8 -> G8, rook H8 -> F8)
+        if (canCastleKingside_black &&
+            !(allPieces & ((1ULL << 61) | (1ULL << 62))) && // F8, G8 empty
+            !isKingInCheck(BLACK, board))
+        {
 
+            Board temp = board;
+            movePiece(temp.king_black, 60, 61, BLACK, temp);
+            if (!isKingInCheck(BLACK, temp))
+            {
+                movePiece(temp.king_black, 61, 62, BLACK, temp);
+                if (!isKingInCheck(BLACK, temp))
+                    moves.push_back(mkMove(60, 62, 63, 61, 0));
+                // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
+            }
+        }
 
-u64 RookMasks[64];
-u64 BishopMasks[64];
+        // Black queenside (E8 -> C8, rook A8 -> D8)
+        if (canCastleQueenside_black &&
+            !(allPieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
+            !isKingInCheck(BLACK, board))
+        {
 
-int rookBits[64];
-int bishopBits[64];
-
-int popcount(u64 x) { return __builtin_popcountll(x); }
-
-
-
-
-
-
+            Board temp = board;
+            movePiece(temp.king_black, 60, 59, BLACK, temp);
+            if (!isKingInCheck(BLACK, temp))
+            {
+                movePiece(temp.king_black, 59, 58, BLACK, temp);
+                if (!isKingInCheck(BLACK, temp))
+                    moves.push_back(mkMove(60, 58, 56, 59, 0));
+                // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
+            }
+        }
+    }
+    moves = legalMoves;
+    return moves;
+}
 
 void print_bitboard(u64 bb) {
     for (int rank = 7; rank >= 0; rank--) {
@@ -166,54 +221,6 @@ Board fenUnloader(const std::string& fen) {
                     board.king_black    |= bit; 
                     board.all_black |= bit;
                     break;
-                case 'P': 
-                    board.pawns_white   |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'N': 
-                    board.knights_white |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'B': 
-                    board.bishops_white |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'R': 
-                    board.rooks_white   |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'Q': 
-                    board.queens_white  |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'K': 
-                    board.king_white    |= bit; 
-                    board.all_white |= bit;
-                    break;
-                case 'p': 
-                    board.pawns_black   |= bit; 
-                    board.all_black |= bit;
-                    break;
-                case 'n': 
-                    board.knights_black |= bit; 
-                    board.all_black |= bit;
-                    break;
-                case 'b': 
-                    board.bishops_black |= bit; 
-                    board.all_black |= bit;
-                    break;
-                case 'r': 
-                    board.rooks_black   |= bit; 
-                    board.all_black |= bit;
-                    break;
-                case 'q': 
-                    board.queens_black  |= bit; 
-                    board.all_black |= bit;
-                    break;
-                case 'k': 
-                    board.king_black    |= bit; 
-                    board.all_black |= bit;
-                    break;
             }
             square++;
         }
@@ -221,15 +228,7 @@ Board fenUnloader(const std::string& fen) {
     return board;
 }
 
-u64 setOccupancy(int index, int bits, u64 mask) {
-    u64 occupancy = 0ULL;
-    for (int i = 0; i < bits; i++) {
-        int square = __builtin_ctzll(mask);
-        mask &= mask - 1;
-        if (index & (1 << i)) occupancy |= (1ULL << square);
-    }
-    return occupancy;
-}
+
 
 
 
@@ -382,12 +381,7 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vec
 
     moves.clear();
 
-    generatePawnMoves(board, side, moves);
-    generateRookMoves(board, side, moves);
-    generateKnightMoves(board, side, moves);
-    generateBishopMoves(board, side, moves);
-    generateQueenMoves(board, side, moves);
-    generateKingMoves(board, side, moves);
+    generateMoves(board, side, moves);
 
 
     if (side == WHITE) {
@@ -447,13 +441,7 @@ int pieceValueAtSq(const Board& board, int sq) {
 Move findBestMove(Board& board, Color side, int depth) {
     std::vector<Move> moves;
    
-    moves.clear();
-    generatePawnMoves(board, side, moves);
-    generateRookMoves(board, side, moves);
-    generateKnightMoves(board, side, moves);
-    generateBishopMoves(board, side, moves);
-    generateQueenMoves(board, side, moves);
-    generateKingMoves(board, side, moves);
+    generateMoves(board, side, moves);
     
 
     Move bestMove;
@@ -544,14 +532,8 @@ int main() {
             // Parse position command and set up board
         }
         else if (input.rfind("go", 0) == 0) {
-            moves.clear();
-            moves = generatePawnMoves(board, side, moves);
-            moves = generateKnightMoves(board, side, moves);
-            moves = generateKingMoves(board, side, moves);
-            moves = generateRookMoves(board, side, moves);
-            moves = generateBishopMoves(board, side, moves);
-            moves = generateQueenMoves(board, side, moves);
-            
+            generateMoves(board, side, moves);
+
             std::cout << "Generated moves: " << moves.size() << "\n";
             
             Move best = findBestMove(board, side, 3);

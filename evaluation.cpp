@@ -5,8 +5,7 @@
 #include <vector>
 #include <bits/stdc++.h>
 #include <cstdlib>
-#include "constants.cpp"
-#include "generateMoves.cpp"
+#include "search.h"
 
 using u64 = uint64_t;
 
