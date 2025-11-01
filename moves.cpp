@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <bits/stdc++.h>
+//#include <stdc++.h>
 #include <cstdlib>
 #include <ctime>
 #include "constants.h"
@@ -25,13 +25,11 @@ bool canCastleQueenside_black = true;
 std::vector<std::vector<u64>> RookAttackTable(64);
 std::vector<std::vector<u64>> BishopAttackTable(64);
 
-
 u64 RookMasks[64];
 u64 BishopMasks[64];
 
 int rookBits[64];
 int bishopBits[64];
-
 
 Move mkMove(int from, int to, int from2, int to2, u64 capturedPiece, Piece promotion = NONE)
 {

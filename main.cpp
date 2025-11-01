@@ -3,10 +3,13 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <bits/stdc++.h>
+//#include <bits/stdc++.h>
 #include <cstdlib>
 #include <ctime>
 #include "evaluation.h"
+#include "moves.h"
+#include "search.h"
+#include "constants.h"
 
 
 using u64 = uint64_t;
