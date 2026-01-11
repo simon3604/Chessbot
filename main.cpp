@@ -3,11 +3,13 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-//#include <bits/stdc++.h>
+#include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#include <sstream>
+#include <fstream>
 #include "evaluation.h"
-#include "moves.h"
+#include "moveGeneration.h"
 #include "search.h"
 #include "constants.h"
 
@@ -16,23 +18,49 @@ using u64 = uint64_t;
 
 
 
+void print_bitboard(u64 bb) {
+    for (int rank = 7; rank >= 0; rank--) {
+        for (int file = 0; file < 8; file++) {
+            int square = rank * 8 + file;
+            std::cout << ((bb >> square) & 1ULL) << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\n";
+}
 
 
 
+
+void logToFile(const std::string message) {
+    std::ofstream log("engine_log.txt", std::ios::app); // "app" = append mode
+    if (log.is_open()) {
+    
+        log << message << std::endl;
+    }
+}
 
 
 std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 std::vector<Move> generateMoves(Board &board, Color side, std::vector<Move> &moves) {
-    moves.clear();
+   
     
+    
+    
+    moves.clear();
+    std::cout << "Generated moves:" << std::endl;
     generateKnightMoves(board, side, moves);
+    std::cout << moves.size();
     generateKingMoves(board, side, moves);
+    std::cout << moves.size();
     generatePawnMoves(board, side, moves);
+    std::cout << moves.size();
     generateRookMoves(board, side, moves);
     generateBishopMoves(board, side, moves);
     generateQueenMoves(board, side, moves);
-
+    std::cout << moves.size();
+    print_bitboard(board.pawns_white);
     std::vector<Move> legalMoves;
     for (auto &m : moves) {
         Undo u = makeMove(m, board, side);
@@ -114,16 +142,7 @@ std::vector<Move> generateMoves(Board &board, Color side, std::vector<Move> &mov
     return moves;
 }
 
-void print_bitboard(u64 bb) {
-    for (int rank = 7; rank >= 0; rank--) {
-        for (int file = 0; file < 8; file++) {
-            int square = rank * 8 + file;
-            std::cout << ((bb >> square) & 1ULL) << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
-}
+
 
 std::string numToPos(int num) {
     std::string str;
@@ -289,32 +308,65 @@ std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
     return selectedMove;
 } 
 
-void printBoardAsLetters(const Board& board) {
-    for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
-        for (int file = 0; file < 8; ++file) {
-            int sq = rank * 8 + file;
-            char c = '.';
+std::string printBoardAsLetters(const Board& board, bool forLog) {
+    if (forLog == false) {
+        for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
+            for (int file = 0; file < 8; ++file) {
+                int sq = rank * 8 + file;
+                char c = '.';
 
-            u64 mask = 1ULL << sq;
+                u64 mask = 1ULL << sq;
 
-            if (mask & board.pawns_white)   c = 'P';
-            else if (mask & board.knights_white) c = 'N';
-            else if (mask & board.bishops_white) c = 'B';
-            else if (mask & board.rooks_white)   c = 'R';
-            else if (mask & board.queens_white)  c = 'Q';
-            else if (mask & board.king_white)    c = 'K';
-            else if (mask & board.pawns_black)   c = 'p';
-            else if (mask & board.knights_black) c = 'n';
-            else if (mask & board.bishops_black) c = 'b';
-            else if (mask & board.rooks_black)   c = 'r';
-            else if (mask & board.queens_black)  c = 'q';
-            else if (mask & board.king_black)    c = 'k';
+                if (mask & board.pawns_white)   c = 'P';
+                else if (mask & board.knights_white) c = 'N';
+                else if (mask & board.bishops_white) c = 'B';
+                else if (mask & board.rooks_white)   c = 'R';
+                else if (mask & board.queens_white)  c = 'Q';
+                else if (mask & board.king_white)    c = 'K';
+                else if (mask & board.pawns_black)   c = 'p';
+                else if (mask & board.knights_black) c = 'n';
+                else if (mask & board.bishops_black) c = 'b';
+                else if (mask & board.rooks_black)   c = 'r';
+                else if (mask & board.queens_black)  c = 'q';
+                else if (mask & board.king_black)    c = 'k';
 
-            std::cout << c << " ";
+                std::cout << c << " ";
+            }
+            std::cout << "\n";
         }
-        std::cout << "\n";
+        return "noreturn";
+    } else {
+        std::string log;
+        for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
+            for (int file = 0; file < 8; ++file) {
+                int sq = rank * 8 + file;
+                char c = '.';
+
+                u64 mask = 1ULL << sq;
+
+                if (mask & board.pawns_white)   c = 'P';
+                else if (mask & board.knights_white) c = 'N';
+                else if (mask & board.bishops_white) c = 'B';
+                else if (mask & board.rooks_white)   c = 'R';
+                else if (mask & board.queens_white)  c = 'Q';
+                else if (mask & board.king_white)    c = 'K';
+                else if (mask & board.pawns_black)   c = 'p';
+                else if (mask & board.knights_black) c = 'n';
+                else if (mask & board.bishops_black) c = 'b';
+                else if (mask & board.rooks_black)   c = 'r';
+                else if (mask & board.queens_black)  c = 'q';
+                else if (mask & board.king_black)    c = 'k';
+
+                log += c;
+                log += " ";
+            }
+            log += "\n";
+        }
+        return log;
     }
+
 }
+
 
 std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
     if (moves.empty()) return "no moves";
@@ -380,7 +432,7 @@ std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
 
 // Optimized alpha-beta 
 int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vector<Move> moves) {
-    if (depth == 0) return evaluate(board, side, moves);
+    if (depth == 0 /*|| position == GameOver*/) {return evaluate(board, side, moves);};
 
     moves.clear();
 
@@ -444,6 +496,7 @@ int pieceValueAtSq(const Board& board, int sq) {
 Move findBestMove(Board& board, Color side, int depth) {
     std::vector<Move> moves;
    
+    std::cout << "generated Moves findBestMove" << std::endl;
     generateMoves(board, side, moves);
     
 
@@ -464,24 +517,43 @@ Move findBestMove(Board& board, Color side, int depth) {
     
     
 
+    bool found = false;
+
     for (auto& m : moves) {
         Undo undo = makeMove(m, board, side);
+        if (undo.to == -1) { // your makeMove may set to -1 for illegal move; handle gracefully
+            // makeMove indicated a problem; ensure we undo properly
+            undoMove(m, board, side, undo);
+            continue;
+        }
+
         int score = alphaBeta(board, depth - 1, -1000000, 1000000,
                               (side == WHITE) ? BLACK : WHITE, moves);
-        
+        std::string log = numToPos(undo.from) + " " +
+                  numToPos(undo.to) + ": " +
+                  std::to_string(score);
 
+        logToFile(log);
         undoMove(m, board, side, undo);
-        
-        if ((side == WHITE && score > bestScore) ||
+
+        if ((!found) ||
+            (side == WHITE && score > bestScore) ||
             (side == BLACK && score < bestScore)) {
             bestScore = score;
             bestMove = m;
+            found = true;
         }
     }
-    
-    if (bestMove.from == 0 && bestMove.to == 0 && moves.empty()) {
-        std::cerr << "No legal moves found!\n";
-        return bestMove;
+
+    if (!found) {
+        // No legal move found
+        std::cerr << "findBestMove: no legal moves found (returning invalid move)\n";
+        logToFile("findBestMove: no legal moves found (returning invalid move)");
+
+        Move none;
+        none.from = -1;
+        none.to   = -1;
+        return none;
     }
 
     // Make the selected move on the actual board
@@ -490,12 +562,94 @@ Move findBestMove(Board& board, Color side, int depth) {
     return bestMove;
 }
 
+Move parseUCIMove(const std::string& moveStr, Board& board) {
+    // Defensive check
+    if (moveStr.size() < 4) {
+        std::cerr << "Invalid UCI move: " << moveStr << "\n";
+        logToFile("Invalid UCI move: " + moveStr);
 
+        return {};
+    }
+
+    // Convert UCI notation (e.g. "e2e4") into 0–63 square indices
+    int fromFile = moveStr[0] - 'a';   // 'a' → 0, 'b' → 1, ...
+    int fromRank = moveStr[1] - '1';   // '1' → 0, '2' → 1, ...
+    int toFile   = moveStr[2] - 'a';
+    int toRank   = moveStr[3] - '1';
+
+    int from = fromRank * 8 + fromFile;
+    int to   = toRank * 8 + toFile;
+
+    // Handle optional promotion piece (e.g. "q", "r", "b", "n")
+    Piece promotion = NONE;
+    if (moveStr.size() == 5) {
+        switch (moveStr[4]) {
+            case 'q': promotion = QUEEN; break;
+            case 'r': promotion = ROOK;  break;
+            case 'b': promotion = BISHOP; break;
+            case 'n': promotion = KNIGHT; break;
+        }
+    }
+
+    // Construct the Move
+    Move move;
+    move.from = from;
+    move.to = to;
+    move.promotion = promotion;
+    return move;
+}
+
+
+void parsePositionCommand(const std::string& input, Board& board, Color &side) {
+    std::istringstream iss(input);
+    std::string token;
+    iss >> token; // "position"
+
+    std::string type;
+    iss >> type; // "startpos" or "fen"
+
+    if (type == "startpos") {
+        board = fenUnloader(startFen);
+        
+    } 
+    else if (type == "fen") {
+        std::string fenPart, fen;
+        for (int i = 0; i < 6 && iss >> fenPart; ++i) {
+            fen += fenPart + " ";
+        }
+        board = fenUnloader(fen);
+        
+        // get the side-to-move field
+        std::istringstream fenStream(fen);
+        std::string placement, stm;
+        fenStream >> placement >> stm;
+        side = (stm == "w") ? WHITE : BLACK;
+    }
+
+    // Now check for optional "moves"
+    std::string movesKeyword;
+    if (iss >> movesKeyword && movesKeyword == "moves") {
+        std::string moveStr;
+        while (iss >> moveStr) {
+            Move move = parseUCIMove(moveStr, board);
+            makeMove(move, board, side);
+            if (side == WHITE) {
+                side = BLACK;
+            } else {
+                side = WHITE;
+            }
+        }
+    }
+    print_bitboard(board.all_white);
+    print_bitboard(board.all_black);
+}
 
 
 
 int main() {
     initMasks();
+    Board board;
+    Color side = WHITE;
     std::string input;
     std::cout << "id name Main\n";
     std::cout << "id author Me\n";
@@ -508,10 +662,12 @@ int main() {
     
     std::string testFen = "NNNNNNk1/RRRRRRNR/PPPPPRPR/5P1P/8/8/8/8 w KQkq - 0 1";
 
-    Board board = fenUnloader(startFen);
+    
     
     std::vector<Move> moves;
     srand(time(0)); // seed random
+
+    int moveNr = 1;
         
     if (!(board.king_white)) {
         canCastleKingside_white = false;
@@ -522,23 +678,25 @@ int main() {
         canCastleQueenside_black = false;
     } 
 
-    Color side = WHITE;
    
     initRookAttacks();
     initBishopAttacks();
 
     while (std::getline(std::cin, input)) {
         if (input == "isready") {
+            logToFile("GUI: isready");
             std::cout << "readyok\n";
+            logToFile("engine: readyok");
         } 
         else if (input.rfind("position", 0) == 0) {
-            // Parse position command and set up board
+            logToFile("GUI: " + input);
+            parsePositionCommand(input, board, side);
+            logToFile(printBoardAsLetters(board, true));
         }
         else if (input.rfind("go", 0) == 0) {
+            logToFile("GUI: " + input);
             generateMoves(board, side, moves);
 
-            std::cout << "Generated moves: " << moves.size() << "\n";
-            
             Move best = findBestMove(board, side, 3);
 
              /* std::string moveStr = evalMove(moves, side, board);
@@ -547,28 +705,39 @@ int main() {
             */
             moves.clear();
             int eval = evaluate(board, side, moves);
-            std::cout << "Evalution: " << eval << "\n";
 
-            printBoardAsLetters(board);
+            printBoardAsLetters(board, false);
 
             int sq = 27; // d4
             u64 occ = 0ULL;
 
+            logToFile("Move number " + moveNr);
+
+            logToFile("Generated moves: " + moves.size());
+
+            logToFile("Evalution: " + eval);
+
 
             if (eval == -1000000) {
-                std::cout << "White king is checkmated!\n";
+                logToFile("White king is checkmated!");
             } else if (eval == 1000000) {
-                std::cout << "Black king is checkmated!\n";
+                logToFile("Black king is checkmated!");
             } else if (isKingInCheck(WHITE, board) || isKingInCheck(BLACK, board)) {
                 if (isKingInCheck(WHITE, board)) {
-                    std::cout << "White king is in check!\n";
+                    logToFile("White king is in check!");
                 }
                 if (isKingInCheck(BLACK, board)) {
-                    std::cout << "Black king is in check!\n";
+                    logToFile("Black king is in check!");
                 }
+            } else if (eval == 0.5) {
+                logToFile("Stalemate");
             }
-            std::cout << "bestmove " << numToPos(best.from) + numToPos(best.to) << std::endl;        }
-        else if (input == "quit") {
+            std::cout << "bestmove " << numToPos(best.from) + numToPos(best.to) << std::endl;
+            logToFile("engine: bestmove " + numToPos(best.from) + numToPos(best.to));
+
+            moveNr += 1;
+        } else if (input == "quit") {
+            logToFile("GUI: quit");
             break;
         }
     }
@@ -589,3 +758,5 @@ int main() {
     // }
     return 0;
 }
+
+// g++ main.cpp evaluation.cpp moveGeneration.cpp search.cpp -o bot

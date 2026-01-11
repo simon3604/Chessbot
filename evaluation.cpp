@@ -3,13 +3,15 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <bits/stdc++.h>
 #include <cstdlib>
 #include "search.h"
+#include "evaluation.h"
 
 using u64 = uint64_t;
 
 int evaluate(Board& board, Color side, std::vector<Move>& moves) {
+    int score = 0;
+
     // === Generate all legal moves for the current side ===
     moves.clear();
     generatePawnMoves(board, side, moves);
@@ -24,13 +26,12 @@ int evaluate(Board& board, Color side, std::vector<Move>& moves) {
     for (auto &m : moves) {
         Undo u = makeMove(m, board, side);
         bool illegal = isKingInCheck(side, board);
-        std::cout << illegal;
         undoMove(m, board, side, u);
         if (!illegal) legalMoves.push_back(m);
     }
 
     Color oppSide = (side == WHITE) ? BLACK : WHITE;
-    // === Generate all legal moves for the opposite side ===
+    // Generate all legal moves for the opposite side 
     moves.clear();
     generatePawnMoves(board, oppSide, moves);
     generateKnightMoves(board, oppSide, moves);
@@ -44,7 +45,6 @@ int evaluate(Board& board, Color side, std::vector<Move>& moves) {
     for (auto &m : moves) {
         Undo u = makeMove(m, board, oppSide);
         bool illegal = isKingInCheck(oppSide, board);
-        std::cout << illegal;
         undoMove(m, board, oppSide, u);
         if (!illegal) oppLegalMoves.push_back(m);
     }
@@ -55,25 +55,21 @@ int evaluate(Board& board, Color side, std::vector<Move>& moves) {
             // Checkmate for the current side
             return (side == WHITE) ? -1000000 : 1000000;
         } else {
-            // Stalemate
-            return 0;
+            // Stalemate (0.5 so it can't happend from somewhere else)
+            return 0.5; 
         }
-    }
-
-    // === Checkmate and stalemate detection ===
-    if (oppLegalMoves.empty()) {
+    } else if (oppLegalMoves.empty()) {
         if (isKingInCheck(oppSide, board)) {
             // Checkmate for the current side
             return (side == WHITE) ? 1000000 : -1000000;
         } else {
             // Stalemate
-            return 0;
+            return 0.5;
         }
     }
 
-    // === If we reach here, it's a normal position ===
-    // You can now use your usual evaluation (material + positional)
-    int score = 0;
+    // normal position 
+    
 
     // --- Material count ---
     score += popcount(board.pawns_white)   * PAWN_VALUE;

@@ -6,7 +6,7 @@
 #include <bits/stdc++.h>
 #include <cstdlib>
 #include <ctime>
-#include "moves.h"
+#include "moveGeneration.h"
 
 using u64 = uint64_t;
 
@@ -32,7 +32,7 @@ u64* getTypeBB(int pos, Board& board) {
     return nullptr;
 }
 
-//Old makeMove function
+
 u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board) {
     u64 captured = 0ULL;
 
@@ -151,8 +151,9 @@ void undoMove(Move m, Board& board, Color side, Undo undo) {
                       board.rooks_white  | board.queens_white  | board.king_white;
     board.all_black = board.pawns_black | board.knights_black | board.bishops_black |
                       board.rooks_black  | board.queens_black  | board.king_black;
-                    
-    check_board_integrity(board, m.to);              
+    //std::cout << "undoMove";             
+    check_board_integrity(board, m.to); 
+             
 }
 
 
@@ -166,7 +167,7 @@ Undo makeMove(Move m, Board& board, Color side) {
     undo.movedPiece = getTypeBB(m.from, board);
     undo.captured = 0ULL;
     undo.capturedPiece = nullptr;
-    undo.movedRook = nullptr;
+    undo.movedRook = nullptr; 
 
     if (!undo.movedPiece) return undo; // safety check
 
@@ -255,6 +256,15 @@ Undo makeMove(Move m, Board& board, Color side) {
         return undo;
     }
 
+    // === En Passant === 
+    if ((*undo.movedPiece == (board.pawns_black || board.pawns_white)) && abs(undo.to - undo.from) == 16) {
+        board.enPassantSquare = (side == WHITE) 
+        ? undo.from + 8 : undo.from - 8; 
+    } else {
+        board.enPassantSquare = -1;
+    }
+
+
     // === Update bitboards ===
     board.all_white =
         board.pawns_white | board.knights_white | board.bishops_white |
@@ -263,7 +273,7 @@ Undo makeMove(Move m, Board& board, Color side) {
         board.pawns_black | board.knights_black | board.bishops_black |
         board.rooks_black | board.queens_black | board.king_black;
 
-
+    //std::cout << "MakeMove";
     check_board_integrity(board, m.to);
     return undo;
 }
