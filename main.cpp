@@ -12,135 +12,14 @@
 #include "moveGeneration.h"
 #include "search.h"
 #include "constants.h"
+#include "misc.h"
 
 
 using u64 = uint64_t;
 
 
 
-void print_bitboard(u64 bb) {
-    for (int rank = 7; rank >= 0; rank--) {
-        for (int file = 0; file < 8; file++) {
-            int square = rank * 8 + file;
-            std::cout << ((bb >> square) & 1ULL) << " ";
-        }
-        std::cout << "\n";
-    }
-    std::cout << "\n";
-}
-
-
-
-
-void logToFile(const std::string message) {
-    std::ofstream log("engine_log.txt", std::ios::app); // "app" = append mode
-    if (log.is_open()) {
-    
-        log << message << std::endl;
-    }
-}
-
-
 std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-std::vector<Move> generateMoves(Board &board, Color side, std::vector<Move> &moves) {
-   
-    
-    
-    
-    moves.clear();
-    std::cout << "Generated moves:" << std::endl;
-    generateKnightMoves(board, side, moves);
-    std::cout << moves.size();
-    generateKingMoves(board, side, moves);
-    std::cout << moves.size();
-    generatePawnMoves(board, side, moves);
-    std::cout << moves.size();
-    generateRookMoves(board, side, moves);
-    generateBishopMoves(board, side, moves);
-    generateQueenMoves(board, side, moves);
-    std::cout << moves.size();
-    print_bitboard(board.pawns_white);
-    std::vector<Move> legalMoves;
-    for (auto &m : moves) {
-        Undo u = makeMove(m, board, side);
-        if (!isKingInCheck(side, board))
-        {
-            legalMoves.push_back(m);
-        }
-        undoMove(m, board, side, u);
-    }
-    
-
-    // --- Castling ---
-    u64 allPieces = board.all_white | board.all_black;
-    if (side == WHITE)
-    {
-        // White kingside (E1 -> G1, rook H1 -> F1)
-        if (canCastleKingside_white &&
-            !(allPieces & ((1ULL << 5) | (1ULL << 6))) && // F1, G1 empty
-            !isKingInCheck(WHITE, board))
-        {
-
-            moves.push_back(mkMove(4, 6, 7, 5, 0ULL, NONE)); // from2=7 (rook), to2=5 (rook move)
-        }
-
-        // White queenside (E1 -> C1, rook A1 -> D1)
-        if (canCastleQueenside_white &&
-            !(allPieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // B1, C1, D1 empty
-            !isKingInCheck(WHITE, board))
-        {
-
-            Board temp = board;
-            movePiece(temp.king_white, 4, 3, WHITE, temp);
-            if (!isKingInCheck(WHITE, temp))
-            {
-                movePiece(temp.king_white, 3, 2, WHITE, temp);
-                if (!isKingInCheck(WHITE, temp))
-                    moves.push_back(mkMove(4, 2, 0, 3, 0)); // from2=0 (rook), to2=3 (rook move)
-                                                            // std::cout << "move: " << fromSq << " → " << "K" << "\n";
-            }
-        }
-    }
-    else
-    {
-        // Black kingside (E8 -> G8, rook H8 -> F8)
-        if (canCastleKingside_black &&
-            !(allPieces & ((1ULL << 61) | (1ULL << 62))) && // F8, G8 empty
-            !isKingInCheck(BLACK, board))
-        {
-
-            Board temp = board;
-            movePiece(temp.king_black, 60, 61, BLACK, temp);
-            if (!isKingInCheck(BLACK, temp))
-            {
-                movePiece(temp.king_black, 61, 62, BLACK, temp);
-                if (!isKingInCheck(BLACK, temp))
-                    moves.push_back(mkMove(60, 62, 63, 61, 0));
-                // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-            }
-        }
-
-        // Black queenside (E8 -> C8, rook A8 -> D8)
-        if (canCastleQueenside_black &&
-            !(allPieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
-            !isKingInCheck(BLACK, board))
-        {
-
-            Board temp = board;
-            movePiece(temp.king_black, 60, 59, BLACK, temp);
-            if (!isKingInCheck(BLACK, temp))
-            {
-                movePiece(temp.king_black, 59, 58, BLACK, temp);
-                if (!isKingInCheck(BLACK, temp))
-                    moves.push_back(mkMove(60, 58, 56, 59, 0));
-                // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-            }
-        }
-    }
-    moves = legalMoves;
-    return moves;
-}
 
 
 
@@ -308,65 +187,6 @@ std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
     return selectedMove;
 } 
 
-std::string printBoardAsLetters(const Board& board, bool forLog) {
-    if (forLog == false) {
-        for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
-            for (int file = 0; file < 8; ++file) {
-                int sq = rank * 8 + file;
-                char c = '.';
-
-                u64 mask = 1ULL << sq;
-
-                if (mask & board.pawns_white)   c = 'P';
-                else if (mask & board.knights_white) c = 'N';
-                else if (mask & board.bishops_white) c = 'B';
-                else if (mask & board.rooks_white)   c = 'R';
-                else if (mask & board.queens_white)  c = 'Q';
-                else if (mask & board.king_white)    c = 'K';
-                else if (mask & board.pawns_black)   c = 'p';
-                else if (mask & board.knights_black) c = 'n';
-                else if (mask & board.bishops_black) c = 'b';
-                else if (mask & board.rooks_black)   c = 'r';
-                else if (mask & board.queens_black)  c = 'q';
-                else if (mask & board.king_black)    c = 'k';
-
-                std::cout << c << " ";
-            }
-            std::cout << "\n";
-        }
-        return "noreturn";
-    } else {
-        std::string log;
-        for (int rank = 7; rank >= 0; --rank) { // print from rank 8 to 1
-            for (int file = 0; file < 8; ++file) {
-                int sq = rank * 8 + file;
-                char c = '.';
-
-                u64 mask = 1ULL << sq;
-
-                if (mask & board.pawns_white)   c = 'P';
-                else if (mask & board.knights_white) c = 'N';
-                else if (mask & board.bishops_white) c = 'B';
-                else if (mask & board.rooks_white)   c = 'R';
-                else if (mask & board.queens_white)  c = 'Q';
-                else if (mask & board.king_white)    c = 'K';
-                else if (mask & board.pawns_black)   c = 'p';
-                else if (mask & board.knights_black) c = 'n';
-                else if (mask & board.bishops_black) c = 'b';
-                else if (mask & board.rooks_black)   c = 'r';
-                else if (mask & board.queens_black)  c = 'q';
-                else if (mask & board.king_black)    c = 'k';
-
-                log += c;
-                log += " ";
-            }
-            log += "\n";
-        }
-        return log;
-    }
-
-}
-
 
 std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
     if (moves.empty()) return "no moves";
@@ -376,7 +196,7 @@ std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
     int bestMoveEval = 0;
     int from;
     int to;
-    std::cout << bestMoveEval << std::endl;
+    std::cerr << bestMoveEval << std::endl;
     static int lastFrom = -1, lastTo = -1;
 
 
@@ -394,13 +214,13 @@ std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
             eval -= 20; // discourage reversals
         }
         
-        std::cout << eval << ", ";
+        std::cerr << eval << ", ";
         if ((!bestMoveEval) || (eval > bestMoveEval)) {
             bestMoveEval = eval;
             from = m.from;
             to = m.to;
         } 
-        std::cout << bestMoveEval << std::endl;
+         
         undoMoveEval(*pieceBB, m.from, m.to, side, boardCopy, capture);
         lastFrom = from;
         lastTo = to;
@@ -430,49 +250,41 @@ std::string evalMove(std::vector<Move>& moves, Color side, Board& board) {
 
 
 
-// Optimized alpha-beta 
+
 int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vector<Move> moves) {
-    if (depth == 0 /*|| position == GameOver*/) {return evaluate(board, side, moves);};
-
+    
     moves.clear();
-
     generateMoves(board, side, moves);
+    
+    if (depth == 0 /*|| position == GameOver*/) {
+        logToFile("ab: depth = 0, evaluating");
+        std::cerr << "ab: moves.size1 = " << moves.size() << std::endl;
+        int score = evaluate(board, side, moves);
+        std::cerr << "ab: moves.size2 = " << moves.size() << std::endl;         
+        return score;
+    };
 
+    
+    std::cerr << "ab: depth = " << depth << std::endl; 
+    std::cerr << "ab: moves.size = " << moves.size() << std::endl; 
 
-    if (side == WHITE) {
-        int value = -1000000;
-        for (auto& m : moves) {
-            Undo undo = makeMove(m, board, side);
+    int value = (side == WHITE) ? -1000000 : 1000000;
+    for (auto& m : moves) {
+        Undo undo = makeMove(m, board, side);
 
-            if (isKingInCheck(side, board)) {
-                undoMove(m, board, side, undo);
-                continue; // skip illegal move
-            }
-            int score = alphaBeta(board, depth - 1, alpha, beta, BLACK, std::vector<Move>());
+        if (isKingInCheck(side, board)) {
             undoMove(m, board, side, undo);
-
-            value = std::max(value, score);
-            alpha = std::max(alpha, score);
-            if (alpha >= beta) break; // pruning
+            continue; // skip illegal move
         }
-        return value;
-    } else {
-        int value = 1000000;
-        for (auto& m : moves) {
-            Undo undo = makeMove(m, board, side);
-            if (isKingInCheck(side, board)) {
-                undoMove(m, board, side, undo);
-                continue; // skip illegal move
-            }
-            int score = alphaBeta(board, depth - 1, alpha, beta, WHITE, std::vector<Move>());
-            undoMove(m, board, side, undo);
+        int score = alphaBeta(board, depth - 1, alpha, beta, side, std::vector<Move>());
+        undoMove(m, board, side, undo);
 
-            value = std::min(value, score);
-            beta = std::min(beta, score);
-            if (beta <= alpha) break; // pruning
-        }
-        return value;
+        value = std::max(value, score);
+        alpha = std::max(alpha, score);
+        if (alpha >= beta) break; // pruning
     }
+    return value;
+
 }
 
 int pieceValueAtSq(const Board& board, int sq) {
@@ -496,7 +308,7 @@ int pieceValueAtSq(const Board& board, int sq) {
 Move findBestMove(Board& board, Color side, int depth) {
     std::vector<Move> moves;
    
-    std::cout << "generated Moves findBestMove" << std::endl;
+    logToFile("generated Moves findBestMove"); 
     generateMoves(board, side, moves);
     
 
@@ -521,13 +333,12 @@ Move findBestMove(Board& board, Color side, int depth) {
 
     for (auto& m : moves) {
         Undo undo = makeMove(m, board, side);
-        if (undo.to == -1) { // your makeMove may set to -1 for illegal move; handle gracefully
-            // makeMove indicated a problem; ensure we undo properly
+        if (undo.to == -1) { 
             undoMove(m, board, side, undo);
             continue;
         }
 
-        int score = alphaBeta(board, depth - 1, -1000000, 1000000,
+        int score = alphaBeta(board, depth, -1000000, 1000000,
                               (side == WHITE) ? BLACK : WHITE, moves);
         std::string log = numToPos(undo.from) + " " +
                   numToPos(undo.to) + ": " +
@@ -640,8 +451,8 @@ void parsePositionCommand(const std::string& input, Board& board, Color &side) {
             }
         }
     }
-    print_bitboard(board.all_white);
-    print_bitboard(board.all_black);
+    //print_bitboard(board.all_white);
+    //print_bitboard(board.all_black);
 }
 
 
@@ -651,9 +462,7 @@ int main() {
     Board board;
     Color side = WHITE;
     std::string input;
-    std::cout << "id name Main\n";
-    std::cout << "id author Me\n";
-    std::cout << "uciok\n";
+    
 
     for (int sq = 0; sq < 64; sq++) {
         RookAttackTable[sq].resize(1ULL << rookBits[sq]);
@@ -683,7 +492,16 @@ int main() {
     initBishopAttacks();
 
     while (std::getline(std::cin, input)) {
-        if (input == "isready") {
+        if (input == "uci") {
+            logToFile("GUI: uci");
+            std::cout << "id name Main\n";
+            std::cout << "id author Me\n";
+            std::cout << "uciok\n";
+            logToFile("engine: id name Main");
+            logToFile("engine: id author Me");
+            logToFile("engine: uciok");
+        }
+        else if (input == "isready") {
             logToFile("GUI: isready");
             std::cout << "readyok\n";
             logToFile("engine: readyok");
@@ -695,7 +513,6 @@ int main() {
         }
         else if (input.rfind("go", 0) == 0) {
             logToFile("GUI: " + input);
-            generateMoves(board, side, moves);
 
             Move best = findBestMove(board, side, 3);
 
@@ -706,7 +523,7 @@ int main() {
             moves.clear();
             int eval = evaluate(board, side, moves);
 
-            printBoardAsLetters(board, false);
+            //printBoardAsLetters(board, false);
 
             int sq = 27; // d4
             u64 occ = 0ULL;
@@ -739,6 +556,8 @@ int main() {
         } else if (input == "quit") {
             logToFile("GUI: quit");
             break;
+        } else if (input != "quit") {
+            logToFile(input);
         }
     }
 

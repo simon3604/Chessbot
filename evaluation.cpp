@@ -9,6 +9,7 @@
 
 using u64 = uint64_t;
 
+
 int evaluate(Board& board, Color side, std::vector<Move>& moves) {
     int score = 0;
 
