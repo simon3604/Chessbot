@@ -4,62 +4,47 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
-#include "search.h"
 #include "evaluation.h"
+#include "makeMove.h"
+#include "constants.h"
+#include "moveGen.h"
+#include "attack.h"
+
+
+
 
 using u64 = uint64_t;
 
 
-int evaluate(Board& board, Color side, std::vector<Move>& moves) {
+int evaluate(const Board& board, Color side, std::vector<Move>& moves) {
     int score = 0;
+    Board boardCopy = board;
 
     // === Generate all legal moves for the current side ===
     moves.clear();
-    generatePawnMoves(board, side, moves);
-    generateKnightMoves(board, side, moves);
-    generateBishopMoves(board, side, moves);
-    generateRookMoves(board, side, moves);
-    generateQueenMoves(board, side, moves);
-    generateKingMoves(board, side, moves);
+    generateLegalMoves(boardCopy, side, moves);
 
-    // Filter only legal moves (that don't leave king in check)
-    std::vector<Move> legalMoves;
-    for (auto &m : moves) {
-        Undo u = makeMove(m, board, side);
-        bool illegal = isKingInCheck(side, board);
-        undoMove(m, board, side, u);
-        if (!illegal) legalMoves.push_back(m);
+    // === Checkmate and stalemate detection ===
+    if (moves.empty()) {
+        if (isKingInCheck(side, board)) {
+            // Checkmate for the current side
+            return (side == WHITE) ? -1000000 : 1000000;
+        } else {
+            // Stalemate 
+            return 0; 
+        }
     }
 
     Color oppSide = (side == WHITE) ? BLACK : WHITE;
     // Generate all legal moves for the opposite side 
     moves.clear();
-    generatePawnMoves(board, oppSide, moves);
-    generateKnightMoves(board, oppSide, moves);
-    generateBishopMoves(board, oppSide, moves);
-    generateRookMoves(board, oppSide, moves);
-    generateQueenMoves(board, oppSide, moves);
-    generateKingMoves(board, oppSide, moves);
 
-    // Filter only legal moves (that don't leave king in check)
-    std::vector<Move> oppLegalMoves;
-    for (auto &m : moves) {
-        Undo u = makeMove(m, board, oppSide);
-        bool illegal = isKingInCheck(oppSide, board);
-        undoMove(m, board, oppSide, u);
-        if (!illegal) oppLegalMoves.push_back(m);
-    }
+    
+    generateLegalMoves(boardCopy, oppSide, moves);
 
-    // === Checkmate and stalemate detection ===
-    if (legalMoves.empty()) {
-        if (isKingInCheck(side, board)) {
-            // Checkmate for the current side
-            return (side == WHITE) ? -1000000 : 1000000;
-        } else {
-            // Stalemate (0.5 so it can't happend from somewhere else)
-            return 0.5; 
-        }
-    } else if (oppLegalMoves.empty()) {
+    
+
+    if (moves.empty()) {
         if (isKingInCheck(oppSide, board)) {
             // Checkmate for the current side
             return (side == WHITE) ? 1000000 : -1000000;
@@ -69,7 +54,45 @@ int evaluate(Board& board, Color side, std::vector<Move>& moves) {
         }
     }
 
-    // normal position 
+    //PST
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+
+    while (ownPieces) {
+        
+        int pieceSq = lsb(ownPieces);
+        ownPieces &= ownPieces - 1;
+
+        Piece piece = getPieceType(board, pieceSq);
+
+        if (side == WHITE) {
+            switch (piece)
+            {
+                case PAWN:
+                    score += (side == WHITE) ? PST_PAWN[pieceSq] : -PST_PAWN[63 - pieceSq];
+                    break;
+
+                case KNIGHT:
+                    score += (side == WHITE) ? PST_KNIGHT[pieceSq] : -PST_KNIGHT[63 - pieceSq];
+                    break;
+
+                case KING:
+                    score += (side == WHITE) ? PST_KING[pieceSq] : -PST_KING[63 - pieceSq];
+                    break;
+
+                case BISHOP:
+                    score += PST_BISHOP[pieceSq];
+                    break;
+
+                case ROOK:
+                    score += PST_ROOK[pieceSq];
+                    break;
+
+                case QUEEN:
+                    score += PST_QUEEN[pieceSq];
+                    break;
+            }
+        }
+    }
     
 
     // --- Material count ---
@@ -85,7 +108,7 @@ int evaluate(Board& board, Color side, std::vector<Move>& moves) {
     score -= popcount(board.rooks_black)   * ROOK_VALUE;
     score -= popcount(board.queens_black)  * QUEEN_VALUE;
 
-    // === Add slight bonus/penalty for being in check ===
+    // === slight bonus/penalty for being in check ===
     if (isKingInCheck(side, board)) {
         score += (side == WHITE) ? -50 : 50;
     }
