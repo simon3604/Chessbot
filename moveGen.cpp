@@ -126,38 +126,43 @@ void initBishopAttacks()
 void initKnightAttacks() {
     for (int sq = 0; sq < 64; sq++) {
         u64 bit = 1ULL << sq;
-        u64 attacks = 0ULL;
+        u64 attacks = 0;
 
-        attacks |= (bit << 17) & ~FILE_A;
-        attacks |= (bit << 15) & ~FILE_H;
-        attacks |= (bit << 10) & ~(FILE_A | FILE_B);
-        attacks |= (bit << 6) & ~(FILE_H | FILE_G);
-        attacks |= (bit >> 17) & ~FILE_H;
-        attacks |= (bit >> 15) & ~FILE_A;
-        attacks |= (bit >> 10) & ~(FILE_H | FILE_G);
-        attacks |= (bit >> 6) & ~(FILE_A | FILE_B);
+        attacks |= (bit & ~FILE_H)  << 17;
+        attacks |= (bit & ~FILE_A)  << 15;
+        attacks |= (bit & ~(FILE_G | FILE_H)) << 10;
+        attacks |= (bit & ~(FILE_A | FILE_B)) << 6;
+
+        attacks |= (bit & ~FILE_H)  >> 15;
+        attacks |= (bit & ~FILE_A)  >> 17;
+        attacks |= (bit & ~(FILE_G | FILE_H)) >> 6;
+        attacks |= (bit & ~(FILE_A | FILE_B)) >> 10;
 
         knightAttacks[sq] = attacks;
     }
 }
+
 
 void initKingAttacks() {
     for (int sq = 0; sq < 64; sq++) {
         u64 bit = 1ULL << sq;
         u64 attacks = 0;
 
-        attacks |= (bit << 8);
-        attacks |= (bit >> 8);
-        attacks |= (bit << 1) & ~FILE_H;
-        attacks |= (bit >> 1) & ~FILE_A;
-        attacks |= (bit << 9) & ~FILE_A;
-        attacks |= (bit << 7) & ~FILE_H;
-        attacks |= (bit >> 7) & ~FILE_A;
-        attacks |= (bit >> 9) & ~FILE_H;
+        attacks |= bit << 8;
+        attacks |= bit >> 8;
+
+        attacks |= (bit & ~FILE_H) << 1;
+        attacks |= (bit & ~FILE_A) >> 1;
+
+        attacks |= (bit & ~FILE_H) << 9;
+        attacks |= (bit & ~FILE_A) << 7;
+        attacks |= (bit & ~FILE_H) >> 7;
+        attacks |= (bit & ~FILE_A) >> 9;
 
         kingAttacks[sq] = attacks;
     }
 }
+
 
 void initAttacks() {
     initRookAttacks();

@@ -1,11 +1,13 @@
 #pragma once
 
 #include <iostream>
+#include <array>
 
 using u64 = uint64_t;
 
 enum Color { WHITE, BLACK };
 enum Piece { NONE = -1, PAWN = 0, ROOK = 1, BISHOP = 2, KNIGHT = 3, QUEEN = 4, KING = 5 };
+
 
 //Files
 constexpr u64 FILE_A  = 0x0101010101010101ULL;
@@ -35,7 +37,7 @@ constexpr int KNIGHT_VALUE = 320;
 constexpr int BISHOP_VALUE = 330;
 constexpr int ROOK_VALUE   = 500;
 constexpr int QUEEN_VALUE  = 900;
-constexpr int KING_VALUE   = 20000;
+constexpr int KING_VALUE   = 2000000;
 
 // Piece-square tables (for white perspective)
 constexpr int PST_PAWN[64] = {
@@ -115,7 +117,6 @@ constexpr int PST_KING_ENDGAME[64] = {
     -50,-30,-30,-30,-30,-30,-30,-50
 };
 
-
 //Magics
 constexpr std::array<uint64_t, 64> RookMagics = {
     0x8a80104000800020ULL, 0x140002000100040ULL, 0x2801880a0017001ULL, 0x100081001000420ULL,
@@ -178,7 +179,28 @@ constexpr int BishopShifts[64] = {
 };
 
 
-//Board info (piece positions in bitboards)
+extern u64 RookMasks[64];
+extern u64 BishopMasks[64];
+ 
+extern int rookBits[64];
+extern int bishopBits[64];
+ 
+extern u64 knightAttacks[64];
+extern u64 kingAttacks[64];
+ 
+extern std::vector<std::vector<u64>> RookAttackTable;
+extern std::vector<std::vector<u64>> BishopAttackTable;
+
+
+extern bool canCastleKingside_white; 
+extern bool canCastleQueenside_white;
+
+extern bool canCastleKingside_black ; 
+extern bool canCastleQueenside_black;
+
+extern Color sideToMove;
+
+
 struct Board {
     u64 pawns_white;
     u64 knights_white;
@@ -194,29 +216,29 @@ struct Board {
     u64 queens_black;
     u64 king_black;
 
-    // Optional: cached info
     u64 all_white;
     u64 all_black;
+
+    int enPassantSquare = -1;
 };
 
-//Move info
 struct Move {
     int from = -1;
     int to = -1;
     int from2 = -1;
     int to2 = -1;
-    u64 capturedPiece = 0ULL;
+    Piece captured = NONE;
     Piece promotion = NONE;
 };
 
-// Info to Undo a move
 struct Undo {
-    u64 captured;      // bitboard of captured piece
-    u64* movedPiece;   // pointer to the piece we moved
-    u64* capturedPiece; // pointer to the captured piece (if any)
+    u64* movedPiece = nullptr;
+    u64* capturedPiece = nullptr;
+    u64 capturedMask;
     int from;
     int to;
-    int from2;         // for castling rook
+    int from2;
     int to2;
-    u64* movedRook;    // pointer to rook (if castling)
 };
+
+

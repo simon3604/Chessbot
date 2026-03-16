@@ -26,21 +26,22 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
 
     for (int i = 0; i < moves.size(); i++) {
 
-        
-
-
-        
+    
         Board before = board;
         Undo u = makeMove(moves[i], board, side);
+        
+        
 
         if (!(isKingInCheck(side, board))) {
             moves[legalCount++] = moves[i];  // keep move
         }
 
         undoMove(moves[i], board, side, u);
-        if (memcmp(&before, &board, sizeof(Board)) != 0) {
-            logToFile("UNDO BROKEN!");
+        if (!sameBoard(before, board))
+        {
+            //std::cerr << "UNDO BROKEN2\n";
         }
+
     }
 
     moves.resize(legalCount);

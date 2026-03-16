@@ -23,3 +23,5 @@ bool canCastleQueenside_white = true;
 
 bool canCastleKingside_black = true ; 
 bool canCastleQueenside_black = true;
+
+Color sideToMove;

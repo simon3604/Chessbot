@@ -3,24 +3,14 @@
 #include <cstdint>
 #include <vector>
 
-#include "moves.h"
+#include "moveGen.h"
+#include "evaluation.h"
 
 using u64 = uint64_t;
 
 
 
-
-u64* getTypeBB(int pos, Board& board);
-
-//Old makeMove function
-u64 movePiece(u64 &pieceBB, int fromSq, int toSq, Color side, Board &board);
-
-void check_board_integrity(const Board &board, int square, const char* tag = "");
+int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vector<Move> moves);
 
 
-// Undo a move
-void undoMove(Move m, Board& board, Color side, Undo undo);
-
-
-// Make a move on the board and return undo info
-Undo makeMove(Move m, Board& board, Color side);
+Move findBestMove(Board& board, Color side, int depth);

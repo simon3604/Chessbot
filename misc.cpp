@@ -38,15 +38,16 @@ std::string print_bitboardForLog(u64 bb) {
 }
 
 void logToFile(const std::string message) {
-    std::ofstream log("/home/simon3604/Chessbot/engine_log.txt", std::ios::app); // "app" = append mode
-    if (log.is_open()) {
-    
-        log << message << std::endl;
+    static std::ofstream log("/home/simon3604/Chessbot/engine_log.txt", std::ios::app);
+
+    if (log) {
+        log << message << '\n';
     }
 }
 
 void checkBoard(const Board& board) {
-    logToFile(print_bitboardForLog(board.king_white));
+    u64 bb = board.king_white; 
+    logToFile(print_bitboardForLog(bb));
 }
 
 
@@ -416,6 +417,9 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
 
     if (type == "startpos") {
         board = fenUnloader(startFen);
+
+
+        sideToMove = WHITE;
         
     } 
     else if (type == "fen") {
@@ -429,7 +433,8 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
         std::istringstream fenStream(fen);
         std::string placement, stm;
         fenStream >> placement >> stm;
-        side = (stm == "w") ? WHITE : BLACK;
+        sideToMove = (stm == "w") ? WHITE : BLACK;
+    
     }
 
     // Now check for optional "moves"
@@ -438,18 +443,39 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
         std::string moveStr;
         while (iss >> moveStr) {
             Move move = parseUCIMove(moveStr, board);
-            makeMove(move, board, side);
-            if (side == WHITE) {
-                side = BLACK;
+            makeMove(move, board, sideToMove);
+            if (sideToMove == WHITE) {
+                sideToMove = BLACK;
             } else {
-                side = WHITE;
+                sideToMove = WHITE;
             }
         }
     }
-    //print_bitboard(board.all_white);
-    //print_bitboard(board.all_black);
+
+    
+    
+   
 }
 
+bool sameBoard(const Board& a, const Board& b)
+{
+    return
+        a.pawns_white   == b.pawns_white   &&
+        a.knights_white == b.knights_white &&
+        a.bishops_white == b.bishops_white &&
+        a.rooks_white   == b.rooks_white   &&
+        a.queens_white  == b.queens_white  &&
+        a.king_white    == b.king_white    &&
+
+        a.pawns_black   == b.pawns_black   &&
+        a.knights_black == b.knights_black &&
+        a.bishops_black == b.bishops_black &&
+        a.rooks_black   == b.rooks_black   &&
+        a.queens_black  == b.queens_black  &&
+        a.king_black    == b.king_black    &&
+
+        a.enPassantSquare == b.enPassantSquare;
+}
 
 Piece getPieceType(const Board& board, int sq) {
     if (sq < 0 || sq > 63) return NONE;

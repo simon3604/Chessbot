@@ -42,7 +42,6 @@ int main() {
     std::vector<Move> moves;
     srand(time(0)); // seed random
 
-    int moveNr = 1;
         
     if (!(board.king_white)) {
         canCastleKingside_white = false;
@@ -83,9 +82,9 @@ int main() {
 
             stopSearch = false;
 
-            Move best = findBestMove(board, side, 1);
+            Move best = findBestMove(board, sideToMove, 1);
             
-
+            sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
 
             moves.clear();
             int eval = evaluate(board, side, moves);
@@ -97,7 +96,6 @@ int main() {
             generateLegalMoves(board, side, moves);
             
 
-            logToFile("Move number " + std::to_string(moveNr));
 
             logToFile("Generated moves: " + moves.size());
 
@@ -115,10 +113,10 @@ int main() {
             else if (eval == 0 && moves.empty()) {
                 logToFile("Stalemate");
             }
-            std::cout << "bestmove " << numToPos(best.from) + numToPos(best.to) << std::endl;
-            logToFile("engine: bestmove " + numToPos(best.from) + numToPos(best.to));
+            std::string move = numToPos(best.from) + numToPos(best.to);
 
-            moveNr += 1;
+            std::cout << "bestmove " << move << std::endl;
+            logToFile("engine: bestmove " + move);
         } else if (input == "quit") {
             logToFile("GUI: quit");
             break;
@@ -127,6 +125,10 @@ int main() {
             stopSearch = true;
            
         } 
+        else if (input == "test") {
+            logToFile(input);
+            
+        }
         else if (input != "quit") {
             logToFile(input);
         }
