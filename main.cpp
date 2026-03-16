@@ -82,7 +82,7 @@ int main() {
 
             stopSearch = false;
 
-            Move best = findBestMove(board, sideToMove, 1);
+            Move best = findBestMove(board, sideToMove, 3);
             
             sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
 
@@ -104,10 +104,10 @@ int main() {
             moves.clear();
 
 
-            if (eval == -1000000) {
+            if (eval == -10000000) {
                 logToFile("White king is checkmated!");
             } 
-            else if (eval == 1000000) {
+            else if (eval == 10000000) {
                 logToFile("Black king is checkmated!");
             } 
             else if (eval == 0 && moves.empty()) {

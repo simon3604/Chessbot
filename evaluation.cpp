@@ -50,7 +50,7 @@ int evaluate(const Board& board, Color side, std::vector<Move>& moves) {
             return (side == WHITE) ? 1000000 : -1000000;
         } else {
             // Stalemate
-            return 0.5;
+            return 0;
         }
     }
 
@@ -64,34 +64,34 @@ int evaluate(const Board& board, Color side, std::vector<Move>& moves) {
 
         Piece piece = getPieceType(board, pieceSq);
 
-        if (side == WHITE) {
-            switch (piece)
-            {
-                case PAWN:
-                    score += (side == WHITE) ? PST_PAWN[pieceSq] : -PST_PAWN[63 - pieceSq];
-                    break;
+    
+        switch (piece)
+        {
+            case PAWN:
+                score += (side == WHITE) ? PST_PAWN[pieceSq] : -PST_PAWN[63 - pieceSq];
+                break;
 
-                case KNIGHT:
-                    score += (side == WHITE) ? PST_KNIGHT[pieceSq] : -PST_KNIGHT[63 - pieceSq];
-                    break;
+            case KNIGHT:
+                score += (side == WHITE) ? PST_KNIGHT[pieceSq] : -PST_KNIGHT[63 - pieceSq];
+                break;
 
-                case KING:
-                    score += (side == WHITE) ? PST_KING[pieceSq] : -PST_KING[63 - pieceSq];
-                    break;
+            case KING:
+                score += (side == WHITE) ? PST_KING[pieceSq] : -PST_KING[63 - pieceSq];
+                break;
 
-                case BISHOP:
-                    score += PST_BISHOP[pieceSq];
-                    break;
+            case BISHOP:
+                score += (side == WHITE) ? PST_BISHOP[pieceSq] : -PST_BISHOP[63 - pieceSq];
+                break;
 
-                case ROOK:
-                    score += PST_ROOK[pieceSq];
-                    break;
+            case ROOK:
+                score += (side == WHITE) ? PST_ROOK[pieceSq] : -PST_ROOK[63 - pieceSq];
+                break;
 
-                case QUEEN:
-                    score += PST_QUEEN[pieceSq];
-                    break;
-            }
+            case QUEEN:
+                score += (side == WHITE) ? PST_QUEEN[pieceSq] : -PST_QUEEN[63 - pieceSq];
+                break;
         }
+    
     }
     
 
