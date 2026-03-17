@@ -19,11 +19,13 @@ using u64 = uint64_t;
 std::atomic<bool> stopSearch(false);
 
 
-int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vector<Move> moves) {
+int alphaBeta(Board& board, int depth, int alpha, int beta, Color side) {
 
     if (stopSearch) {
         return 0;
     }
+
+    std::vector<Move> moves;
 
     generateLegalMoves(board, side, moves);
     if (depth == 0) {
@@ -36,12 +38,12 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vec
         for (auto& m : moves) {
             Undo u = makeMove(m, board, side);
 
-            if (!isKingInCheck(side, board)) {
+            
 
-                int score = alphaBeta(board, depth - 1, alpha, beta, BLACK, moves);
-                value = std::max(value, score);
-                alpha = std::max(alpha, score);
-            }
+            int score = alphaBeta(board, depth - 1, alpha, beta, BLACK);
+            value = std::max(value, score);
+            alpha = std::max(alpha, score);
+        
 
             undoMove(m, board, side, u);
             if (alpha >= beta) break;
@@ -57,7 +59,7 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, std::vec
 
             if (!isKingInCheck(side, board)) {
                 
-                int score = alphaBeta(board, depth - 1, alpha, beta, WHITE, moves);
+                int score = alphaBeta(board, depth - 1, alpha, beta, WHITE);
                 value = std::min(value, score);
                 beta = std::min(beta, score);
             }
@@ -107,8 +109,8 @@ Move findBestMove(Board& board, Color side, int depth) {
 
     
 
-        int score = alphaBeta(board, depth, -1000000, 1000000,
-                              (side == WHITE) ? BLACK : WHITE, moves);
+        int score = alphaBeta(board, depth - 1, -1000000, 1000000,
+                              (side == WHITE) ? BLACK : WHITE);
         std::string log = numToPos(undo.from) + " " +
                   numToPos(undo.to) + ": " +
                   std::to_string(score);

@@ -87,13 +87,13 @@ int main() {
             sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
 
             moves.clear();
-            int eval = evaluate(board, side, moves);
+            int eval = evaluate(board, sideToMove, moves);
 
 
             
         
             
-            generateLegalMoves(board, side, moves);
+            generateLegalMoves(board, sideToMove, moves);
             
 
 
@@ -127,6 +127,7 @@ int main() {
         } 
         else if (input == "test") {
             logToFile(input);
+            generateLegalMoves(board, sideToMove, moves);
             
         }
         else if (input != "quit") {

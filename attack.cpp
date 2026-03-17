@@ -2,6 +2,7 @@
 #include <bitset>
 #include <cstdint>
 #include <vector>
+#include <string>
 #include <bits/stdc++.h>
 #include <cstdlib>
 #include "constants.h"
@@ -26,6 +27,7 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
 
     for (int i = 0; i < moves.size(); i++) {
 
+        //logToFile("Move " + numToPos(moves[i].from) + numToPos(moves[i].to));
     
         Board before = board;
         Undo u = makeMove(moves[i], board, side);
@@ -35,16 +37,23 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
         if (!(isKingInCheck(side, board))) {
             moves[legalCount++] = moves[i];  // keep move
         }
+        
+
+        
 
         undoMove(moves[i], board, side, u);
         if (!sameBoard(before, board))
         {
-            //std::cerr << "UNDO BROKEN2\n";
+            //std::cerr << "UNDO BROKEN\n";
         }
 
     }
 
     moves.resize(legalCount);
+    std::cerr << "LegalCount: " << legalCount << std::endl;
+    
+    
+    
 
 
 
@@ -211,7 +220,8 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
         int fromSq = lsb(queens);
         queens &= queens - 1;
 
-        u64 queenAttacks = getBishopAttackMagics(fromSq, occ) | getRookAttackMagics(fromSq, occ);
+        u64 queenAttacks = getQueenAttackMagics(fromSq, occ);
+    
 
         if (queenAttacks & attackedSquareBB) {
             std::cerr << "Queen" << std::endl;

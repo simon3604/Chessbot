@@ -40,6 +40,68 @@ u64 setOccupancy(int index, int bits, u64 mask) {
 }
 
 
+u64 getRookAttacks(int sq, u64 occ)
+{
+    u64 attacks = 0ULL;
+    int rank = sq / 8, file = sq % 8;
+    for (int r = rank + 1; r <= 7; r++)
+    {
+        attacks |= 1ULL << (r * 8 + file);
+        if (occ & (1ULL << (r * 8 + file)))
+            break;
+    }
+    for (int r = rank - 1; r >= 0; r--)
+    {
+        attacks |= 1ULL << (r * 8 + file);
+        if (occ & (1ULL << (r * 8 + file)))
+            break;
+    }
+    for (int f = file + 1; f <= 7; f++)
+    {
+        attacks |= 1ULL << (rank * 8 + f);
+        if (occ & (1ULL << (rank * 8 + f)))
+            break;
+    }
+    for (int f = file - 1; f >= 0; f--)
+    {
+        attacks |= 1ULL << (rank * 8 + f);
+        if (occ & (1ULL << (rank * 8 + f)))
+            break;
+    }
+    return attacks;
+}
+
+u64 getBishopAttacks(int sq, u64 occ)
+{
+    u64 attacks = 0ULL;
+    int rank = sq / 8, file = sq % 8;
+
+    for (int r = rank + 1, f = file + 1; r <= 7 && f <= 7; r++, f++)
+    {
+        attacks |= 1ULL << (r * 8 + f);
+        if (occ & (1ULL << (r * 8 + f)))
+            break;
+    }
+    for (int r = rank + 1, f = file - 1; r <= 7 && f >= 0; r++, f--)
+    {
+        attacks |= 1ULL << (r * 8 + f);
+        if (occ & (1ULL << (r * 8 + f)))
+            break;
+    }
+    for (int r = rank - 1, f = file + 1; r >= 0 && f <= 7; r--, f++)
+    {
+        attacks |= 1ULL << (r * 8 + f);
+        if (occ & (1ULL << (r * 8 + f)))
+            break;
+    }
+    for (int r = rank - 1, f = file - 1; r >= 0 && f >= 0; r--, f--)
+    {
+        attacks |= 1ULL << (r * 8 + f);
+        if (occ & (1ULL << (r * 8 + f)))
+            break;
+    }
+    return attacks;
+}
 
 // Masks
 u64 maskRook(int sq)
@@ -100,7 +162,7 @@ void initRookAttacks()
             u64 occ = setOccupancy(index, bits, RookMasks[sq]);
             // The index must match the lookup formula used later
             int magicIndex = (occ * RookMagics[sq]) >> (64 - rookBits[sq]);
-            RookAttackTable[sq][magicIndex] = getRookAttackMagics(sq, occ);
+            RookAttackTable[sq][magicIndex] = getRookAttacks(sq, occ);
         }
     }
 }
@@ -118,7 +180,7 @@ void initBishopAttacks()
             u64 occ = setOccupancy(index, bits, BishopMasks[sq]);
             // The index must match the lookup formula used later
             int magicIndex = (occ * BishopMagics[sq]) >> (64 - bishopBits[sq]);
-            BishopAttackTable[sq][magicIndex] = getBishopAttackMagics(sq, occ);
+            BishopAttackTable[sq][magicIndex] = getBishopAttacks(sq, occ);
         }
     }
 }
