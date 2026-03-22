@@ -9,6 +9,7 @@
 #include "constants.h"
 #include "moveGen.h"
 #include "attack.h"
+#include "misc.h"
 
 
 
@@ -16,55 +17,25 @@
 using u64 = uint64_t;
 
 
-int evaluate(const Board& board, Color side, std::vector<Move>& moves) {
+int evaluate(const Board& board, Color side) {
     int score = 0;
     Board boardCopy = board;
 
-    // === Generate all legal moves for the current side ===
-    moves.clear();
-    generateLegalMoves(boardCopy, side, moves);
-
-    // === Checkmate and stalemate detection ===
-    if (moves.empty()) {
-        if (isKingInCheck(side, board)) {
-            // Checkmate for the current side
-            return (side == WHITE) ? -1000000 : 1000000;
-        } else {
-            // Stalemate 
-            return 0; 
-        }
-    }
-
-    Color oppSide = (side == WHITE) ? BLACK : WHITE;
-    // Generate all legal moves for the opposite side 
-    moves.clear();
-
     
-    generateLegalMoves(boardCopy, oppSide, moves);
-
-    
-
-    if (moves.empty()) {
-        if (isKingInCheck(oppSide, board)) {
-            // Checkmate for the current side
-            return (side == WHITE) ? 1000000 : -1000000;
-        } else {
-            // Stalemate
-            return 0;
-        }
-    }
+    u64 all = board.all_white | board.all_black;
 
     //PST
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+    
 
-    while (ownPieces) {
+    while (all) {
         
-        int pieceSq = lsb(ownPieces);
-        ownPieces &= ownPieces - 1;
+        int pieceSq = lsb(all);
+        all &= all - 1;
 
         Piece piece = getPieceType(board, pieceSq);
 
-    
+        Color side = (getColor(board, pieceSq));
+
         switch (piece)
         {
             case PAWN:
@@ -109,9 +80,35 @@ int evaluate(const Board& board, Color side, std::vector<Move>& moves) {
     score -= popcount(board.queens_black)  * QUEEN_VALUE;
 
     // === slight bonus/penalty for being in check ===
-    if (isKingInCheck(side, board)) {
-        score += (side == WHITE) ? -50 : 50;
+    if (isKingInCheck(WHITE, board)) {
+        score -= 50;
+    } else if (isKingInCheck(BLACK, board)) {
+        score += 50;
     }
 
-    return score;
+    return (side == WHITE) ? score : -score;
 }
+
+int scoreMove(const Board& board, Move& m, Color side, int ply) {
+    Piece victim = getPieceType(board, m.to);
+    Piece attacker = getPieceType(board, m.from);
+
+    // 1. Promotions (VERY high priority)
+    if (m.promotion != NONE) {
+        return 100000 + pieceValue(m.promotion);
+    }
+
+    // 2. Captures (MVV-LVA)
+    if (victim != NONE) {
+        return 10000 + 10 * pieceValue(victim) - pieceValue(attacker);
+    }
+
+    // 3. Killer moves
+    if (m == killerMoves[ply][0]) return 9000;
+    if (m == killerMoves[ply][1]) return 8000;
+
+    // 4. History heuristic
+    return history[side][m.from][m.to];
+}
+
+

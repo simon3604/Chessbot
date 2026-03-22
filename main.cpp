@@ -24,6 +24,7 @@ using u64 = uint64_t;
 int main() {
     initMasks();
     initAttacks();
+    initZobrist();
     
     Board board{};
     Color side = WHITE;
@@ -39,7 +40,6 @@ int main() {
     
     
     
-    std::vector<Move> moves;
     srand(time(0)); // seed random
 
         
@@ -52,7 +52,6 @@ int main() {
         canCastleQueenside_black = false;
     } 
 
-   
     
 
     while (std::getline(std::cin, input)) {
@@ -82,37 +81,14 @@ int main() {
 
             stopSearch = false;
 
-            Move best = findBestMove(board, sideToMove, 3);
+            Move best = findBestMove(board, sideToMove, 7);
             
             sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
 
-            moves.clear();
-            int eval = evaluate(board, sideToMove, moves);
+
 
 
             
-        
-            
-            generateLegalMoves(board, sideToMove, moves);
-            
-
-
-            logToFile("Generated moves: " + moves.size());
-
-            logToFile("Evalution: " + eval);
-
-            moves.clear();
-
-
-            if (eval == -10000000) {
-                logToFile("White king is checkmated!");
-            } 
-            else if (eval == 10000000) {
-                logToFile("Black king is checkmated!");
-            } 
-            else if (eval == 0 && moves.empty()) {
-                logToFile("Stalemate");
-            }
             std::string move = numToPos(best.from) + numToPos(best.to);
 
             std::cout << "bestmove " << move << std::endl;
@@ -125,10 +101,24 @@ int main() {
             stopSearch = true;
            
         } 
-        else if (input == "test") {
+        else if (input == "evaluate") {
             logToFile(input);
-            generateLegalMoves(board, sideToMove, moves);
+            std::cout << std::to_string(evaluate(board, sideToMove)) << std::endl;
             
+        }
+        else if (input == "perft") {
+            logToFile(input);
+            std::cout << perft(board, 6, sideToMove) << std::endl;
+            
+        }
+        else if (input.rfind("benchmark", 0) == 0) {
+            logToFile(input);
+            std::istringstream iss(input);
+            std::string token;
+            int depth;
+
+            iss >> token >> depth;  
+            benchmarkSearch(board, depth, sideToMove);          
         }
         else if (input != "quit") {
             logToFile(input);

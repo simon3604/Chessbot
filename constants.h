@@ -5,9 +5,15 @@
 
 using u64 = uint64_t;
 
-enum Color { WHITE, BLACK };
+enum Color { WHITE, BLACK};
 enum Piece { NONE = -1, PAWN = 0, ROOK = 1, BISHOP = 2, KNIGHT = 3, QUEEN = 4, KING = 5 };
 
+
+extern u64 nodes;
+extern u64 zobrist[2][6][64]; // [color][piece][square]
+extern u64 zobristSide;
+
+constexpr int MATE = 10000000;
 
 //Files
 constexpr u64 FILE_A  = 0x0101010101010101ULL;
@@ -38,6 +44,11 @@ constexpr int BISHOP_VALUE = 330;
 constexpr int ROOK_VALUE   = 500;
 constexpr int QUEEN_VALUE  = 900;
 constexpr int KING_VALUE   = 2000000;
+
+constexpr int WK = 1 << 0; // white king-side
+constexpr int WQ = 1 << 1; // white queen-side
+constexpr int BK = 1 << 2; // black king-side
+constexpr int BQ = 1 << 3; // black queen-side
 
 // Piece-square tables (for white perspective)
 constexpr int PST_PAWN[64] = {
@@ -118,7 +129,7 @@ constexpr int PST_KING_ENDGAME[64] = {
 };
 
 //Magics
-constexpr std::array<uint64_t, 64> RookMagics = {
+constexpr std::array<u64, 64> RookMagics = {
     0x8a80104000800020ULL, 0x140002000100040ULL, 0x2801880a0017001ULL, 0x100081001000420ULL,
   0x200020010080420ULL, 0x3001c0002010008ULL, 0x8480008002000100ULL, 0x2080088004402900ULL,
   0x800098204000ULL,     0x2024401000200040ULL, 0x100802000801000ULL, 0x120800800801000ULL,
@@ -137,7 +148,7 @@ constexpr std::array<uint64_t, 64> RookMagics = {
   0x20030a0244872ULL,    0x12001008414402ULL,   0x2006104900a0804ULL,  0x1004081002402ULL
 };
 
-constexpr std::array<uint64_t, 64> BishopMagics = {
+constexpr std::array<u64, 64> BishopMagics = {
     0x40040844404084ULL,   0x2004208a004208ULL,   0x10190041080202ULL,   0x108060845042010ULL,
   0x581104180800210ULL,  0x2112080446200010ULL, 0x1080820820060210ULL, 0x3c0808410220200ULL,
   0x4050404440404ULL,    0x21001420088ULL,      0x24d0080801082102ULL, 0x1020a0a020400ULL,
@@ -201,7 +212,10 @@ extern bool canCastleQueenside_black;
 extern Color sideToMove;
 
 
+
+
 struct Board {
+    // White pieces
     u64 pawns_white;
     u64 knights_white;
     u64 bishops_white;
@@ -209,6 +223,7 @@ struct Board {
     u64 queens_white;
     u64 king_white;
 
+    // Black pieces
     u64 pawns_black;
     u64 knights_black;
     u64 bishops_black;
@@ -216,10 +231,24 @@ struct Board {
     u64 queens_black;
     u64 king_black;
 
+    // Occupancies
     u64 all_white;
     u64 all_black;
+    
 
-    int enPassantSquare = -1;
+    
+    int castlingRights;
+
+    // En passant
+    int enPassantSquare; // -1 if none
+
+    // Half-move clock (50-move rule)
+    int halfmoveClock;
+
+    // Fullmove number
+    int fullmoveNumber;
+
+    u64 hash;
 };
 
 struct Move {
@@ -229,16 +258,38 @@ struct Move {
     int to2 = -1;
     Piece captured = NONE;
     Piece promotion = NONE;
+
+    bool operator==(const Move& other) const {
+        return from == other.from &&
+               to == other.to &&
+               from2 == other.from2 &&
+               to2 == other.to2 &&
+               promotion == other.promotion;
+    }
 };
+
 
 struct Undo {
-    u64* movedPiece = nullptr;
-    u64* capturedPiece = nullptr;
-    u64 capturedMask;
-    int from;
-    int to;
-    int from2;
-    int to2;
+    int from, to;
+    int from2, to2;
+
+    Piece movedPiece;
+    Piece capturedPiece;
+    
+    bool wasEnPassant;
+    int capturedSquare;
+
+    int prevEnPassant;
+    int prevCastlingRights;
 };
 
+
+extern Move killerMoves[64][2]; // [depth][2 slots]
+
+extern int history[2][64][64]; // side, from, to
+
+
+
+
+enum TTFlag { EXACT, LOWERBOUND, UPPERBOUND };
 

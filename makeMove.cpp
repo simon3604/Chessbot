@@ -16,157 +16,186 @@
 using u64 = uint64_t;
 
 
+void undoMove(Move m, Board& board, Color side, Undo u) {
+    Color opp = (side == WHITE) ? BLACK : WHITE;
 
-// Undo a move
-void undoMove(Move m, Board& board, Color side, Undo undo) {
-    // If the move was a promotion: remove promoted piece and restore pawn
+    u64 fromMask = 1ULL << m.from;
+    u64 toMask   = 1ULL << m.to;
+
+
+    // === 1. MOVE BACK ===
     if (m.promotion != NONE) {
-        if (undo.movedPiece) {
-            // remove the promoted piece from its destination square
-            *undo.movedPiece &= ~(1ULL << m.to);
-        }
-        // restore pawn at the original square
-        u64* pawnBB = (side == WHITE) ? &board.pawns_white : &board.pawns_black;
-        
-        *pawnBB &= ~(1ULL << m.to);
-        *pawnBB |= (1ULL << m.from);
+        // remove promoted piece
+        u64* promoBB = getBitboard(board, m.promotion, side);
+        *promoBB &= ~toMask;
+
+        // restore pawn
+        u64* pawnBB = getBitboard(board, PAWN, side);
+        *pawnBB |= fromMask;
     } else {
-        // Normal move undo: move the bit back from 'to' -> 'from'
-        if (undo.movedPiece) {
-            *undo.movedPiece &= ~(1ULL << m.to);
-            *undo.movedPiece |=  (1ULL << m.from);
+        u64* movedBB = getBitboard(board, u.movedPiece, side);
+        *movedBB &= ~toMask;
+        *movedBB |= fromMask;
+    }
+
+    // occupancy update
+    if (side == WHITE) {
+        board.all_white &= ~toMask;
+        board.all_white |= fromMask;
+    } else {
+        board.all_black &= ~toMask;
+        board.all_black |= fromMask;
+    }
+
+    // === 2. RESTORE CAPTURE ===
+    if (u.capturedPiece != NONE) {
+        if (u.wasEnPassant) {
+            u64* capBB = getBitboard(board, PAWN, opp);
+            *capBB |= (1ULL << u.capturedSquare);
+
+            if (opp == WHITE)
+                board.all_white |= (1ULL << u.capturedSquare);
+            else
+                board.all_black |= (1ULL << u.capturedSquare);
+        } else {
+            u64* capBB = getBitboard(board, u.capturedPiece, opp);
+            *capBB |= toMask;
+
+            if (opp == WHITE)
+                board.all_white |= toMask;
+            else
+                board.all_black |= toMask;
         }
     }
 
-    if (undo.capturedPiece) {
-        *undo.capturedPiece |= undo.capturedMask;
+    // === 3. UNDO CASTLING ===
+    if (m.from2 != -1) {
+        u64* rookBB = getBitboard(board, ROOK, side);
+        *rookBB &= ~(1ULL << m.to2);
+        *rookBB |= (1ULL << m.from2);
+
+        if (side == WHITE) {
+            board.all_white &= ~(1ULL << m.to2);
+            board.all_white |= (1ULL << m.from2);
+        } else {
+            board.all_black &= ~(1ULL << m.to2);
+            board.all_black |= (1ULL << m.from2);
+        }
     }
 
-    // // Undo rook move from castling
-    // if (undo.movedRook) {
-    //     *undo.movedRook &= ~(1ULL << m.to2);
-    //     *undo.movedRook |=  (1ULL << m.from2);
-    // }
+    // === 4. RESTORE STATE (ALWAYS) ===
+    board.enPassantSquare = u.prevEnPassant;
+    board.castlingRights  = u.prevCastlingRights;
+    
+    board.hash = computeHash(board, side);
 
-    board.all_white = board.pawns_white | board.knights_white | board.bishops_white |
-                      board.rooks_white  | board.queens_white  | board.king_white;
-    board.all_black = board.pawns_black | board.knights_black | board.bishops_black |
-                      board.rooks_black  | board.queens_black  | board.king_black;
-    //std::cout << "undoMove";             
-             
 }
 
-
-// Make a move on the board and return undo info
 Undo makeMove(Move m, Board& board, Color side) {
-    Undo undo;
-    undo.from = m.from;
-    undo.to = m.to;
-    undo.from2 = m.from2;
-    undo.to2 = m.to2;
-    undo.movedPiece = getTypeBB(m.from, board);
-    undo.capturedPiece = nullptr;
-    undo.capturedMask = 1ULL << m.to;
+    Undo u;
 
-    u64 oppSideBB = (side == WHITE) ? board.all_black : board.all_white;
+    u.from = m.from;
+    u.to = m.to;
+    u.from2 = m.from2;
+    u.to2 = m.to2;
+
+    u.wasEnPassant = false;
+
+    u.prevEnPassant = board.enPassantSquare;
+    u.prevCastlingRights = board.castlingRights;
+
+    u.movedPiece = getPieceType(board, m.from);
+    u.capturedPiece = NONE;
 
 
+    u64 fromMask = 1ULL << m.from;
+    u64 toMask   = 1ULL << m.to;
 
-    if (!undo.movedPiece) {return undo;} // safety check
+    Color opp = (side == WHITE) ? BLACK : WHITE;
 
+    u64* fromBB = getBitboard(board, u.movedPiece, side);
 
-    // capture
-    u64 targetSq = 1ULL << m.to;
+    // === 1. REMOVE FROM SQUARE ===
+    *fromBB &= ~fromMask;
 
-    
+    if (side == WHITE)
+        board.all_white &= ~fromMask;
+    else
+        board.all_black &= ~fromMask;
 
-    if (targetSq & oppSideBB) {
-        undo.capturedPiece = getTypeBB(m.to, board);
-        if (undo.capturedPiece) {
-            undo.capturedMask = targetSq;
-            *undo.capturedPiece &= ~targetSq;
-        }
+    // === 2. CAPTURE ===
+    Piece captured = getPieceType(board, m.to);
+
+    if (captured != NONE) {
+        u.capturedPiece = captured;
+
+        u64* capBB = getBitboard(board, captured, opp);
+        *capBB &= ~toMask;
+
+        if (opp == WHITE)
+            board.all_white &= ~toMask;
+        else
+            board.all_black &= ~toMask;
     }
 
+    // === 3. EN PASSANT CAPTURE ===
+    if (u.movedPiece == PAWN && m.to == board.enPassantSquare) {
+        int capSq = (side == WHITE) ? m.to - 8 : m.to + 8;
 
-    // Promotion for non-pawn (safety)
-    if ((m.promotion != NONE) && !((1ULL << m.from) & ((side == WHITE) ? board.pawns_white : board.pawns_black))) {
-    std::cerr << "⚠️ ERROR: Promotion set on a non-pawn move! from=" << m.from
-              << " to=" << m.to << "\n";
+        u.wasEnPassant = true;
+        u.capturedPiece = PAWN;
+        u.capturedSquare = capSq;
+
+        u64 capMask = 1ULL << capSq;
+        u64* capBB = getBitboard(board, PAWN, opp);
+        *capBB &= ~capMask;
+
+        if (opp == WHITE)
+            board.all_white &= ~capMask;
+        else
+            board.all_black &= ~capMask;
     }
-    
 
-    //Check if the piece moved is a pawn
-    u64 fromSq = 1ULL << m.from;
-    bool isPawn = (side == WHITE)
-        ? (fromSq & board.pawns_white)
-        : (fromSq & board.pawns_black);
-
-  
-
-
-    // === Handle promotion ===
+    // === 4. MOVE PIECE / PROMOTION ===
     if (m.promotion != NONE) {
-        // Remove pawn from its bitboard
-        *undo.movedPiece &= ~(1ULL << m.from);
+        u64* promoBB = getBitboard(board, m.promotion, side);
+        *promoBB |= toMask;
+    } else {
+        *fromBB |= toMask;
+    }
 
-        // Add promoted piece to the right bitboard
-        u64* promoBB = nullptr;
-        switch (m.promotion) {
-            case QUEEN:
-                promoBB = (side == WHITE) ? &board.queens_white : &board.queens_black;
-                break;
-            case ROOK:
-                promoBB = (side == WHITE) ? &board.rooks_white : &board.rooks_black;
-                break;
-            case BISHOP:
-                promoBB = (side == WHITE) ? &board.bishops_white : &board.bishops_black;
-                break;
-            case KNIGHT:
-                promoBB = (side == WHITE) ? &board.knights_white : &board.knights_black;
-                break;
-            default:
-                promoBB = undo.movedPiece; // just in case
-                break;
+    // === 5. ADD TO OCCUPANCY ===
+    if (side == WHITE)
+        board.all_white |= toMask;
+    else
+        board.all_black |= toMask;
+
+    // === 6. CASTLING ===
+    if (m.from2 != -1) {
+        u64 rookFrom = 1ULL << m.from2;
+        u64 rookTo   = 1ULL << m.to2;
+
+        u64* rookBB = getBitboard(board, ROOK, side);
+
+        *rookBB &= ~rookFrom;
+        *rookBB |= rookTo;
+
+        if (side == WHITE) {
+            board.all_white &= ~rookFrom;
+            board.all_white |= rookTo;
+        } else {
+            board.all_black &= ~rookFrom;
+            board.all_black |= rookTo;
         }
-
-        *promoBB |= (1ULL << m.to);
-        undo.movedPiece = promoBB; // track promoted piece for undo
-    }
-    else {
-        // === Normal move ===
-        *undo.movedPiece &= ~(1ULL << m.from);
-        *undo.movedPiece |=  (1ULL << m.to);
     }
 
-    // // === Handle castling rook ===
-    // if (m.from2 != -1 && m.to2 != -1) {
-    //     undo.movedRook = getTypeBB(m.from2, board);
-    //     if (undo.movedRook) {
-    //         *undo.movedRook &= ~(1ULL << m.from2);
-    //         *undo.movedRook |=  (1ULL << m.to2);
-    //     }
-    // }
-
-    
-
-    // === En Passant === 
-    if (isPawn && abs(undo.to - undo.from) == 16) {
-        board.enPassantSquare = (side == WHITE) ? undo.from + 8 : undo.from - 8;
+    // === 7. SET EN PASSANT SQUARE ===
+    if (u.movedPiece == PAWN && abs(m.to - m.from) == 16) {
+        board.enPassantSquare = (side == WHITE) ? m.from + 8 : m.from - 8;
     } else {
         board.enPassantSquare = -1;
     }
 
-
-    // === Update bitboards ===
-    board.all_white =
-        board.pawns_white | board.knights_white | board.bishops_white |
-        board.rooks_white | board.queens_white | board.king_white;
-    board.all_black =
-        board.pawns_black | board.knights_black | board.bishops_black |
-        board.rooks_black | board.queens_black | board.king_black;
-
-    
-    return undo;
+    board.hash = computeHash(board, (side == WHITE) ? BLACK : WHITE);
+    return u;
 }
-

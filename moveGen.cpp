@@ -17,7 +17,7 @@ inline int msb(u64 bb) { return 63 - __builtin_clzll(bb); }
 inline int popcount(u64 x) { return __builtin_popcountll(x); }
 
 
-Move mkMove(int from, int to, int from2, int to2, Piece captured, Piece promotion)
+inline Move mkMove(int from, int to, int from2, int to2, Piece captured, Piece promotion)
 {
     Move m;
     m.from = from;
@@ -233,21 +233,21 @@ void initAttacks() {
     initKingAttacks();
 }
 
-u64 getRookAttackMagics(int sq, u64 occ)
+inline u64 getRookAttackMagics(int sq, u64 occ)
 {
     occ &= RookMasks[sq];
     int index = (occ * RookMagics[sq]) >> (64 - rookBits[sq]); // safe index
     return RookAttackTable[sq][index];
 }
 
-u64 getBishopAttackMagics(int sq, u64 occ)
+inline u64 getBishopAttackMagics(int sq, u64 occ)
 {
     occ &= BishopMasks[sq];
     int index = (occ * BishopMagics[sq]) >> (64 - bishopBits[sq]); // safe index
     return BishopAttackTable[sq][index];
 }
 
-u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq, occ) | getBishopAttackMagics(sq, occ); }
+inline u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq, occ) | getBishopAttackMagics(sq, occ); }
 
 
 
@@ -298,6 +298,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
         // === Captures left ===
         u64 leftCaps = (pawns << 7) & ~FILE_H & board.all_black;
 
+
         while (leftCaps)
         {
             int toSq = lsb(leftCaps);
@@ -307,19 +308,20 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
             }
         }
 
         // === Captures right ===
         u64 rightCaps = (pawns << 9) & ~FILE_A & board.all_black;
+        
 
         while (rightCaps)
         {
@@ -330,16 +332,50 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
             }
         }
+
+
+        // En passant
+
+        if (board.enPassantSquare != -1)
+            {
+                u64 epBB = 1ULL << board.enPassantSquare;
+
+                // left EP (<<7)
+                u64 epLeft = (pawns << 7) & ~FILE_H & epBB;
+
+                while (epLeft)
+                {
+                    int toSq = lsb(epLeft);
+                    epLeft &= epLeft - 1;
+
+                    int fromSq = toSq - 7;
+
+                    moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                }
+
+                // right EP (<<9)
+                u64 epRight = (pawns << 9) & ~FILE_A & epBB;
+
+                while (epRight)
+                {
+                    int toSq = lsb(epRight);
+                    epRight &= epRight - 1;
+
+                    int fromSq = toSq - 9;
+
+                    moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                }
+            }
     }
     else
     {
@@ -382,6 +418,20 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
         // === Captures left ===
         u64 leftCaps = (pawns >> 9) & ~FILE_H & board.all_white;
 
+        if (board.enPassantSquare != -1) {
+            u64 epCaps = leftCaps & board.enPassantSquare;
+
+            while (epCaps) {
+                int toSq = lsb(epCaps);
+                epCaps &= epCaps - 1;
+
+                int fromSq = toSq + 7;
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq + 8), NONE));
+
+            }
+        }
+
         while (leftCaps)
         {
             int toSq = lsb(leftCaps);
@@ -391,19 +441,33 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
             }
         }
 
         // === Captures right ===
         u64 rightCaps = (pawns >> 7) & ~FILE_A & board.all_white;
+
+        if (board.enPassantSquare != -1) {
+            u64 epCaps = rightCaps & board.enPassantSquare;
+
+            while (epCaps) {
+                int toSq = lsb(epCaps);
+                epCaps &= epCaps - 1;
+
+                int fromSq = toSq + 9;
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq + 8), NONE));
+
+            }
+        }
 
         while (rightCaps)
         {
@@ -414,14 +478,47 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            }
+        }
+
+        // En passant
+
+        if (board.enPassantSquare != -1)
+        {
+            u64 epBB = 1ULL << board.enPassantSquare;
+
+            // left EP (>>9)
+            u64 epLeft = (pawns >> 9) & ~FILE_H & epBB;
+
+            while (epLeft)
+            {
+                int toSq = lsb(epLeft);
+                epLeft &= epLeft - 1;
+
+                int fromSq = toSq + 9;
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+            }
+
+            // right EP (>>7)
+            u64 epRight = (pawns >> 7) & ~FILE_A & epBB;
+
+            while (epRight)
+            {
+                int toSq = lsb(epRight);
+                epRight &= epRight - 1;
+
+                int fromSq = toSq + 7;
+
+                moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
             }
         }
     }
@@ -549,6 +646,68 @@ void generateKingMoves(const Board& board, Color Side, u64 occ, std::vector<Move
             attacks &= attacks - 1;
             moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
             // std::cout << "move: " << fromSq << " → " << toSq << "Kk" << "\n";
+
+            // King must be on e1
+            if (Side == WHITE && fromSq == 4)
+            {
+                // King-side (O-O)
+                if (board.castlingRights & WK)
+                {
+                    if (!(occ & ((1ULL << 5) | (1ULL << 6)))) // f1, g1 empty
+                    {
+                        if (!isSquareAttacked(board, BLACK, 4) &&   // e1
+                            !isSquareAttacked(board, BLACK, 5) &&   // f1
+                            !isSquareAttacked(board, BLACK, 6))     // g1
+                        {
+                            moves.push_back(mkMove(4, 6, 7, 5, NONE, NONE)); // rook h1→f1
+                        }
+                    }
+                }
+
+                // Queen-side (O-O-O)
+                if (board.castlingRights & WQ)
+                {
+                    if (!(occ & ((1ULL << 3) | (1ULL << 2) | (1ULL << 1)))) // d1,c1,b1 empty
+                    {
+                        if (!isSquareAttacked(board, BLACK, 4) &&   // e1
+                            !isSquareAttacked(board, BLACK, 3) &&   // d1
+                            !isSquareAttacked(board, BLACK, 2))     // c1
+                        {
+                            moves.push_back(mkMove(4, 2, 0, 3, NONE, NONE)); // rook a1→d1
+                        }
+                    }
+                }
+            } 
+            else if (Side == BLACK && fromSq == 60)
+            {
+                // King-side
+                if (board.castlingRights & BK)
+                {
+                    if (!(occ & ((1ULL << 61) | (1ULL << 62))))
+                    {
+                        if (!isSquareAttacked(board, WHITE, 60) &&
+                            !isSquareAttacked(board, WHITE, 61) &&
+                            !isSquareAttacked(board, WHITE, 62))
+                        {
+                            moves.push_back(mkMove(60, 62, 63, 61, NONE, NONE));
+                        }
+                    }
+                }
+
+                // Queen-side
+                if (board.castlingRights & BQ)
+                {
+                    if (!(occ & ((1ULL << 59) | (1ULL << 58) | (1ULL << 57))))
+                    {
+                        if (!isSquareAttacked(board, WHITE, 60) &&
+                            !isSquareAttacked(board, WHITE, 59) &&
+                            !isSquareAttacked(board, WHITE, 58))
+                        {
+                            moves.push_back(mkMove(60, 58, 56, 59, NONE, NONE));
+                        }
+                    }
+                }
+            }
         }
 
     }

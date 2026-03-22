@@ -25,3 +25,13 @@ bool canCastleKingside_black = true ;
 bool canCastleQueenside_black = true;
 
 Color sideToMove;
+
+u64 nodes = 0;
+
+
+Move killerMoves[64][2]; // [depth][2 slots]
+
+int history[2][64][64]; // side, from, to
+
+u64 zobrist[2][6][64]; // [color][piece][square]
+u64 zobristSide;
