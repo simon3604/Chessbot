@@ -42,15 +42,7 @@ int main() {
     
     srand(time(0)); // seed random
 
-        
-    if (!(board.king_white)) {
-        canCastleKingside_white = false;
-        canCastleQueenside_white = false;
-    } 
-    if (!(board.king_black)) {
-        canCastleKingside_black = false;
-        canCastleQueenside_black = false;
-    } 
+    
 
     
 
@@ -78,10 +70,28 @@ int main() {
         }
         else if (input.rfind("go", 0) == 0) {
             logToFile("GUI: " + input);
+           
+            std::istringstream iss(input);
+            std::string token;
+
+            iss >> token; 
+
+            GoParams go {};
+
+            while (iss >> token) {
+                if (token == "wtime") iss >> go.wtime;
+                else if (token == "btime") iss >> go.btime;
+                else if (token == "winc") iss >> go.winc;
+                else if (token == "binc") iss >> go.binc;
+                else if (token == "movestogo") iss >> go.movestogo;
+                else if (token == "depth") iss >> go.depth;
+                else if (token == "movetime") iss >> go.movetime;
+                else if (token == "infinite") go.infinite = true;
+            }
 
             stopSearch = false;
 
-            Move best = findBestMove(board, sideToMove, 7);
+            Move best = search(board, sideToMove, go);
             
             sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
 
@@ -90,8 +100,13 @@ int main() {
 
             
             std::string move = numToPos(best.from) + numToPos(best.to);
+            if (best.promotion != NONE) {
+                std::cout << "bestmove " << move << getPieceLetter(best.promotion) << std::endl;
 
+            } else {
             std::cout << "bestmove " << move << std::endl;
+
+            }
             logToFile("engine: bestmove " + move);
         } else if (input == "quit") {
             logToFile("GUI: quit");
@@ -103,13 +118,35 @@ int main() {
         } 
         else if (input == "evaluate") {
             logToFile(input);
-            std::cout << std::to_string(evaluate(board, sideToMove)) << std::endl;
+            std::cout << std::to_string(evaluate(board, side)) << std::endl;
             
         }
-        else if (input == "perft") {
+        else if (input.rfind("perft", 0) == 0) {
             logToFile(input);
-            std::cout << perft(board, 6, sideToMove) << std::endl;
+            perfTest = true;
+            std::istringstream iss(input);
+            std::string token;
+            int depth;
+
+            iss >> token >> depth; 
+            u64 captures = 0ULL;
+            u64 promotions = 0ULL; 
+            u64 enPassants = 0ULL; 
+            u64 castles = 0ULL; 
+            u64 checks = 0ULL; 
+            u64 checkmates = 0ULL; 
             
+            u64 nodeCount = perft(board, depth, sideToMove, captures, promotions, castles, enPassants, checks, checkmates);
+            std::cout << "==== Perft results ====" << std::endl;
+            std::cout << "Nodes: " << nodeCount << std::endl;
+            std::cout << "Captures: " << captures << std::endl;
+            std::cout << "E.p.: " << enPassants << std::endl;
+            std::cout << "Castles: " << castles << std::endl;
+            std::cout << "Promotions: " << promotions << std::endl;
+            std::cout << "Checks: " << checks << std::endl;
+            std::cout << "Checkmates: " << checkmates << std::endl;
+
+            perfTest = false;
         }
         else if (input.rfind("benchmark", 0) == 0) {
             logToFile(input);

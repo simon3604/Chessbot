@@ -48,25 +48,26 @@ void undoMove(Move m, Board& board, Color side, Undo u) {
     }
 
     // === 2. RESTORE CAPTURE ===
-    if (u.capturedPiece != NONE) {
-        if (u.wasEnPassant) {
-            u64* capBB = getBitboard(board, PAWN, opp);
-            *capBB |= (1ULL << u.capturedSquare);
-
-            if (opp == WHITE)
-                board.all_white |= (1ULL << u.capturedSquare);
-            else
-                board.all_black |= (1ULL << u.capturedSquare);
-        } else {
-            u64* capBB = getBitboard(board, u.capturedPiece, opp);
-            *capBB |= toMask;
-
-            if (opp == WHITE)
-                board.all_white |= toMask;
-            else
-                board.all_black |= toMask;
+    
+    if (u.wasEnPassant) {
+        int capSq = u.capturedSquare;
+        u64* capBB = getBitboard(board, PAWN, opp);
+        *capBB |= (1ULL << capSq);
+        if (opp == WHITE) board.all_white |= (1ULL << capSq);
+        else board.all_black |= (1ULL << capSq);
+    } else if (u.capturedPiece != NONE) {
+        if (u.capturedSquare < 0 || u.capturedSquare >= 64) {
+            std::cout << "BAD capturedSquare\n";
+            exit(1);
         }
-    }
+        u64* capBB = getBitboard(board, u.capturedPiece, opp);
+        *capBB |= (1ULL << u.capturedSquare);
+
+        if (opp == WHITE)
+            board.all_white |= (1ULL << u.capturedSquare);
+        else
+            board.all_black |= (1ULL << u.capturedSquare);
+    } 
 
     // === 3. UNDO CASTLING ===
     if (m.from2 != -1) {
@@ -87,7 +88,23 @@ void undoMove(Move m, Board& board, Color side, Undo u) {
     board.enPassantSquare = u.prevEnPassant;
     board.castlingRights  = u.prevCastlingRights;
     
-    board.hash = computeHash(board, side);
+
+    board.hash = u.prevHash;
+
+    u64 all =
+        board.pawns_white | board.knights_white | board.bishops_white |
+        board.rooks_white | board.queens_white | board.king_white |
+        board.pawns_black | board.knights_black | board.bishops_black |
+        board.rooks_black | board.queens_black | board.king_black;
+
+    if (all != (board.all_white | board.all_black)) {
+        std::cout << "OCCUPANCY BROKEN\n";
+        exit(1);
+    }
+    if (getPieceType(board, m.from) == NONE) {
+        std::cout << "UNDO FAILED: piece missing\n";
+        exit(1);
+    }
 
 }
 
@@ -106,13 +123,19 @@ Undo makeMove(Move m, Board& board, Color side) {
 
     u.movedPiece = getPieceType(board, m.from);
     u.capturedPiece = NONE;
+    u.capturedSquare = -1;
+
+    u.prevHash = board.hash;
+    
 
 
     u64 fromMask = 1ULL << m.from;
     u64 toMask   = 1ULL << m.to;
 
     Color opp = (side == WHITE) ? BLACK : WHITE;
-
+    if (u.movedPiece == NONE) {
+        std::cout << "u.movedPiece: " << u.movedPiece << std::endl;
+    }
     u64* fromBB = getBitboard(board, u.movedPiece, side);
 
     // === 1. REMOVE FROM SQUARE ===
@@ -123,22 +146,7 @@ Undo makeMove(Move m, Board& board, Color side) {
     else
         board.all_black &= ~fromMask;
 
-    // === 2. CAPTURE ===
-    Piece captured = getPieceType(board, m.to);
-
-    if (captured != NONE) {
-        u.capturedPiece = captured;
-
-        u64* capBB = getBitboard(board, captured, opp);
-        *capBB &= ~toMask;
-
-        if (opp == WHITE)
-            board.all_white &= ~toMask;
-        else
-            board.all_black &= ~toMask;
-    }
-
-    // === 3. EN PASSANT CAPTURE ===
+    // === 2. EN PASSANT CAPTURE ===
     if (u.movedPiece == PAWN && m.to == board.enPassantSquare) {
         int capSq = (side == WHITE) ? m.to - 8 : m.to + 8;
 
@@ -155,9 +163,42 @@ Undo makeMove(Move m, Board& board, Color side) {
         else
             board.all_black &= ~capMask;
     }
+    else {
+        // === NORMAL CAPTURE ===
+
+        if (m.captured != NONE) {
+            u.capturedPiece = m.captured;
+            u.capturedSquare = m.to;
+
+            if (m.captured == NONE) {
+                std::cerr << "captured: " << m.captured << std::endl;
+            }
+            u64* capBB = getBitboard(board, m.captured, opp);
+            *capBB &= ~toMask;
+
+            if (opp == WHITE)
+                board.all_white &= ~toMask;
+            else
+                board.all_black &= ~toMask;
+        }
+        if (u.capturedPiece == ROOK) {
+            if (opp == WHITE) {
+                if (u.capturedSquare == 0) board.castlingRights &= ~WQ;
+                if (u.capturedSquare == 7) board.castlingRights &= ~WK;
+            } else {
+                if (u.capturedSquare == 56) board.castlingRights &= ~BQ;
+                if (u.capturedSquare == 63) board.castlingRights &= ~BK;
+            }
+        }
+    }
+
+    
 
     // === 4. MOVE PIECE / PROMOTION ===
     if (m.promotion != NONE) {
+        if (!m.promotion) {
+            std::cerr << "m.promotion: " << m.promotion << std::endl;
+        }
         u64* promoBB = getBitboard(board, m.promotion, side);
         *promoBB |= toMask;
     } else {
@@ -183,9 +224,17 @@ Undo makeMove(Move m, Board& board, Color side) {
         if (side == WHITE) {
             board.all_white &= ~rookFrom;
             board.all_white |= rookTo;
+    
         } else {
             board.all_black &= ~rookFrom;
             board.all_black |= rookTo;
+         
+        }
+        // Clear castling rights for this side
+        if (side == WHITE) {
+            board.castlingRights &= ~(WK | WQ);
+        } else {
+            board.castlingRights &= ~(BK | BQ);
         }
     }
 
@@ -196,6 +245,28 @@ Undo makeMove(Move m, Board& board, Color side) {
         board.enPassantSquare = -1;
     }
 
-    board.hash = computeHash(board, (side == WHITE) ? BLACK : WHITE);
+    if (!perfTest) board.hash = computeHash(board, (side == WHITE) ? BLACK : WHITE);
+
+    if (u.movedPiece == NONE) {
+        std::cout << "ERROR: moving empty square\n";
+        std::cout << "from: " << m.from << "\n";
+        exit(1);
+    }
+
+    if (u.movedPiece == KING) {
+        if (side == WHITE)
+            board.castlingRights &= ~(WK | WQ);
+        else
+            board.castlingRights &= ~(BK | BQ);
+    }
+    if (u.movedPiece == ROOK) {
+        if (side == WHITE) {
+            if (m.from == 0) board.castlingRights &= ~WQ; // a1 rook
+            if (m.from == 7) board.castlingRights &= ~WK; // h1 rook
+        } else {
+            if (m.from == 56) board.castlingRights &= ~BQ; // a8
+            if (m.from == 63) board.castlingRights &= ~BK; // h8
+        }
+    }
     return u;
 }

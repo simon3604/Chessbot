@@ -18,15 +18,17 @@ u64 kingAttacks[64];
 std::vector<std::vector<u64>> RookAttackTable(64);
 std::vector<std::vector<u64>> BishopAttackTable(64);
 
-bool canCastleKingside_white = true; 
-bool canCastleQueenside_white = true;
+bool canCastleKingside_white = false; 
+bool canCastleQueenside_white = false;
 
-bool canCastleKingside_black = true ; 
-bool canCastleQueenside_black = true;
+bool canCastleKingside_black = false; 
+bool canCastleQueenside_black = false;
 
 Color sideToMove;
 
 u64 nodes = 0;
+
+bool perfTest = false;
 
 
 Move killerMoves[64][2]; // [depth][2 slots]

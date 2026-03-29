@@ -44,8 +44,7 @@ int quiescence(Board& board, int alpha, int beta, Color side) {
     generateLegalCaptures(board, side, moves);
 
     for (auto& m : moves) {
-        if (getPieceType(board, m.to) == NONE)
-            continue;
+        
 
         Undo u = makeMove(m, board, side);
 
@@ -95,12 +94,11 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
 
         if (entry.flag == LOWERBOUND)
             alpha = std::max(alpha, entry.score);
-
-        if (entry.flag == UPPERBOUND)
+        else if (entry.flag == UPPERBOUND)
             beta = std::min(beta, entry.score);
 
         if (alpha >= beta)
-            return entry.score;
+            return (entry.flag == LOWERBOUND) ? alpha : beta;
     }
 
 
@@ -123,19 +121,24 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
     if (entry.key == hash && entry.bestMove.from != -1)
         ttMove = entry.bestMove;
 
+    
+
+    // Precompute scores once
+    std::vector<int> scores(moves.size());
+    for (int i = 0; i < moves.size(); i++) {
+        scores[i] = scoreMove(board, moves[i], side, ply);
+    }
+
     if (ttMove.from != -1) {
         for (int i = 0; i < moves.size(); i++) {
             if (moves[i] == ttMove) {
                 std::swap(moves[0], moves[i]);
+                std::swap(scores[0], scores[i]);
                 break;
             }
         }
     }
 
-    // Precompute scores once
-    std::vector<int> scores(moves.size());
-    for (int i = 0; i < moves.size(); i++)
-        scores[i] = scoreMove(board, moves[i], side, ply);
 
     // Incremental selection
     for (int i = 0; i < moves.size(); i++) {
@@ -190,7 +193,13 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
 
     entry.key = hash;
     entry.depth = depth;
-    entry.score = value;
+
+    int storeScore = value;
+
+    if (value > MATE - 1) storeScore += ply;
+    if (value < -MATE + 1) storeScore -= ply;
+
+    entry.score = storeScore;
 
     if (value <= alphaOriginal)
         entry.flag = UPPERBOUND;
@@ -205,16 +214,14 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
 
 
 
-Move findBestMove(Board& board, Color side, int depth) {
+Move findBestMove(Board& board, Color side, int depth, std::vector<Move>& moves, int time) {
    
     memset(killerMoves, 0, sizeof(killerMoves));
     memset(history, 0, sizeof(history));
 
     nodes = 0;
     
-    std::vector<Move> moves;
-    logToFile("generated Moves findBestMove"); 
-    generateLegalMoves(board, side, moves);
+    
    
 
     Move bestMove;
@@ -263,15 +270,10 @@ Move findBestMove(Board& board, Color side, int depth) {
         std::cerr << log << std::endl;
         undoMove(m, board, side, u);
 
-        if (side == WHITE)
-            alpha = std::max(alpha, score);
-        else
-            beta = std::min(beta, score);
+        alpha = std::max(alpha, score);
         
 
-        if ((!found) ||
-            (side == WHITE && score > bestScore) ||
-            (side == BLACK && score < bestScore)) {
+        if (!found || score > bestScore) {
             bestScore = score;
             bestMove = m;
             found = true;
@@ -289,15 +291,45 @@ Move findBestMove(Board& board, Color side, int depth) {
         return none;
     }
 
-    // Make the selected move on the actual board
-    makeMove(bestMove, board, side);
     logToFile(std::to_string(nodes));
     return bestMove;
 }
 
-Move search(Board& board, Color side, int depth) {
-    
-    Move bestMove = findBestMove(board, side, depth);
+Move search(Board& board, Color side, GoParams go) {
+    std::vector<Move> moves;
+
+    logToFile("generated Moves search"); 
+    generateLegalMoves(board, side, moves);
+
+    Move bestMove;
+
+
+    int timeLeft = (side == WHITE) ? go.wtime : go.btime;
+    int increment = (side == WHITE) ? go.winc : go.binc;
+    // Use 2.25% of the time + half of the increment
+    int timeToMove = timeLeft / 40 + (increment/2);
+
+    // If the increment puts us above the total time left
+    // use the timeleft - 0.5 seconds
+    if(timeToMove >= timeLeft) {
+        timeToMove = timeLeft -500;
+    }
+    // If 0.5 seconds puts us below 0
+    // use 0.1 seconds to atleast get some move.
+    if(timeForThisMove < 0) {
+        timeToMove = 100;
+    }
+
+    int maxDepth = 8;
+    for (int d = 1; d < maxDepth; d++) {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        bestMove = findBestMove(board, side, d, moves, timeToMove);
+
+
+    }
+
+    makeMove(bestMove, board, side);
 
     return bestMove;
 }

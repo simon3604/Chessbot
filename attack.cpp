@@ -28,7 +28,10 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
     for (int i = 0; i < moves.size(); i++) {
 
     
-    
+        if (getPieceType(board, moves[i].from) == NONE) {
+            std::cout << "INVALID MOVE: from=" << moves[i].from << "\n";
+            exit(1);
+        }
         Board before = board;
         Undo u = makeMove(moves[i], board, side);
         
@@ -42,9 +45,11 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
         
 
         undoMove(moves[i], board, side, u);
-        if (!sameBoard(before, board))
-        {
-            std::cerr << "UNDO BROKEN\n";
+        if (memcmp(&before, &board, sizeof(Board)) != 0) {
+            
+            sameBoard(before, board);
+            std::cout << "attack: UNDO BROKEN\n";
+            exit(1);
         }
 
     }
@@ -127,7 +132,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     if (attackingSide == WHITE) {
         
         u64 pawns = board.pawns_white;
-        u64 pawnAttacks = pawns << 7 | pawns << 9;
+        u64 pawnAttacks = ((pawns << 7) & ~FILE_H) | ((pawns << 9) & ~FILE_A);
         if(pawnAttacks & attackedSquareBB) {
             return true;
         }
@@ -135,7 +140,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     else if (attackingSide == BLACK) {
        
         u64 pawns = board.pawns_black;
-        u64 pawnAttacks = pawns >> 7 | pawns >> 9;
+        u64 pawnAttacks = ((pawns >> 7) & ~FILE_A) | ((pawns >> 9) & ~FILE_H);
         if(pawnAttacks & attackedSquareBB) {
             return true;
         } 
@@ -244,32 +249,82 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
 
     while (pawns) {
         int fromSq = lsb(pawns);
+        u64 originalPawns = pawns;
+        pawns &= pawns - 1;
         int toSq;
         u64 fromSqBB = 1ULL << fromSq;
 
         if (side == WHITE) {
-            toSq = fromSq + 7;
-            if (toSq >= 0 && toSq < 64 && (oppSideBB & (1ULL << toSq))) {
-                
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            if ((fromSqBB & ~FILE_A)) {
+                toSq = fromSq + 7;
+                if (toSq >= 0 && toSq < 64) {
+                    if (oppSideBB & (1ULL << toSq)) {
+                        if (fromSqBB & RANK_7) {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+
+                        } else {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                        }
+                    }
+                }
+                    
             }
 
-            toSq = fromSq + 9;
-            if (toSq >= 0 && toSq < 64 && (oppSideBB & (1ULL << toSq))) {
-                if (toSq > 63) continue; 
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
-            } 
+            if ((fromSqBB & ~FILE_H)) {
+                toSq = fromSq + 9;
+                if (toSq >= 0 && toSq < 64) {
+                    if (oppSideBB & (1ULL << toSq)) {
+                        if (fromSqBB & RANK_7) {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+
+                        } else {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                        }
+                    }
+                }
+                    
+            }
         } else {
-            toSq = fromSq - 7;
-            if (toSq >= 0 && toSq < 64 && (oppSideBB & (1ULL << toSq))) {
-                if (toSq < 0) continue; 
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            if ((fromSqBB & ~FILE_H)) {
+                toSq = fromSq - 7;
+                if (toSq >= 0 && toSq < 64) {
+                    if (oppSideBB & (1ULL << toSq)) {
+                        if (fromSqBB & RANK_2) {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+
+                        } else {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                        }
+                    }
+                }
+                    
             }
 
-            toSq = fromSq - 9;
-            if (toSq >= 0 && toSq < 64 && (oppSideBB & (1ULL << toSq))) {
-                if (toSq < 0) continue; 
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            if ((fromSqBB & ~FILE_A)) {
+                toSq = fromSq - 9;
+                if (toSq >= 0 && toSq < 64) {
+                    if (oppSideBB & (1ULL << toSq)) {
+                        if (fromSqBB & RANK_2) {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+
+                        } else {
+                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                        }
+                    }
+                }
+                    
             }
         }
 
@@ -280,27 +335,32 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
             if (side == WHITE) {
                 if (epSq % 8 != 0) {  // left EP
                     fromEp = epSq - 9;
-                    if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp)))
+                    if ((fromEp >= 0 && fromEp < 64) && (originalPawns & (1ULL << fromEp))) {
                         moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                    }
                 }
                 if (epSq % 8 != 7) {  // right EP
                     fromEp = epSq - 7;
-                    if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp)))
+                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
                         moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                    }
                 }
             } else {  // black
                 if (epSq % 8 != 0) {  // left EP
                     fromEp = epSq + 7;
-                    if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp)))                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) { 
+                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                    }
                 }
                 if (epSq % 8 != 7) {  // right EP
                     fromEp = epSq + 9;
-                    if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp)))
+                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
                         moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                    }
                 }
             }
         }
-        pawns &= pawns - 1;
+        
 
     }
 
