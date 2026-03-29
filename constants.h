@@ -211,6 +211,8 @@ extern bool canCastleQueenside_black;
 
 extern Color sideToMove;
 
+extern bool perfTest;
+
 
 
 
@@ -277,12 +279,22 @@ struct Undo {
     Piece capturedPiece;
     
     bool wasEnPassant;
-    int capturedSquare;
+    int capturedSquare = 0;
 
     int prevEnPassant;
     int prevCastlingRights;
+    u64 prevHash;
 };
 
+
+struct GoParams {
+    int wtime = -1, btime = -1;
+    int winc = 0, binc = 0;
+    int movestogo = -1;
+    int depth = -1;
+    int movetime = -1;
+    bool infinite = false;
+};
 
 extern Move killerMoves[64][2]; // [depth][2 slots]
 

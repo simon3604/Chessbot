@@ -13,6 +13,6 @@ using u64 = uint64_t;
 int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply);
 
 
-Move findBestMove(Board& board, Color side, int depth);
+Move findBestMove(Board& board, Color side, int depth, std::vector<Move>& moves, int time);
 
-Move search(Board& board, Color side, int depth);
+Move search(Board& board, Color side, GoParams go);

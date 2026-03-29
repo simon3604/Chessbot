@@ -188,7 +188,8 @@ inline u64* getBitboard(Board& board, Piece p, Color side) {
     }
 }
 
-u64 perft(Board& board, int depth, Color side);
+u64 perft(Board& board, int depth, Color side, u64& captures, u64& promotions, 
+    u64& castles, u64& enPassants, u64& checks, u64& checkmates);
 
 inline int pieceValue(Piece p) {
     switch (p) {
@@ -205,4 +206,12 @@ inline int pieceValue(Piece p) {
 void initZobrist();
 
 u64 computeHash(const Board& board, Color side);
+
+char getPieceLetter(Piece piece);
+
+bool hasPawnOnFile(const Board& board, int file, Color side);
+
+int fileOf(int sq);
+
+u64 attackers(const Board& board, Color side, int sq);
 
