@@ -2,16 +2,29 @@
 
 #include <iostream>
 #include <array>
+#include <atomic>
+#include <vector>
 
 using u64 = uint64_t;
 
-enum Color { WHITE, BLACK};
-enum Piece { NONE = -1, PAWN = 0, ROOK = 1, BISHOP = 2, KNIGHT = 3, QUEEN = 4, KING = 5 };
-
+enum Color {WHITE, BLACK};
+enum Piece {WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK, NONE};
+enum MoveFlags {
+    QUIET      = 0,
+    CAPTURE    = 1 << 0,
+    ENPASSANT  = 1 << 1,
+    CASTLING   = 1 << 2,
+    PROMOTION  = 1 << 3
+};
 
 extern u64 nodes;
-extern u64 zobrist[2][6][64]; // [color][piece][square]
+extern u64 zobrist[12][64]; // [piece][square]
 extern u64 zobristSide;
+extern u64 zobristCastling[16]; 
+extern u64 zobristEnPassant[8];
+
+
+extern std::atomic<bool> stopSearch;
 
 constexpr int MATE = 10000000;
 
@@ -43,12 +56,12 @@ constexpr int KNIGHT_VALUE = 320;
 constexpr int BISHOP_VALUE = 330;
 constexpr int ROOK_VALUE   = 500;
 constexpr int QUEEN_VALUE  = 900;
-constexpr int KING_VALUE   = 2000000;
+constexpr int KING_VALUE   = 200000;
 
-constexpr int WK = 1 << 0; // white king-side
-constexpr int WQ = 1 << 1; // white queen-side
-constexpr int BK = 1 << 2; // black king-side
-constexpr int BQ = 1 << 3; // black queen-side
+constexpr int CWK = 1 << 0; // white king-side
+constexpr int CWQ = 1 << 1; // white queen-side
+constexpr int CBK = 1 << 2; // black king-side
+constexpr int CBQ = 1 << 3; // black queen-side
 
 // Piece-square tables (for white perspective)
 constexpr int PST_PAWN[64] = {
@@ -209,46 +222,34 @@ extern bool canCastleQueenside_white;
 extern bool canCastleKingside_black ; 
 extern bool canCastleQueenside_black;
 
-extern Color sideToMove;
 
 extern bool perfTest;
 
 
-
+extern int pst[12][64];
 
 struct Board {
-    // White pieces
-    u64 pawns_white;
-    u64 knights_white;
-    u64 bishops_white;
-    u64 rooks_white;
-    u64 queens_white;
-    u64 king_white;
-
-    // Black pieces
-    u64 pawns_black;
-    u64 knights_black;
-    u64 bishops_black;
-    u64 rooks_black;
-    u64 queens_black;
-    u64 king_black;
+    u64 pieces[12];
 
     // Occupancies
     u64 all_white;
     u64 all_black;
+    u64 all;
+
+    Color sideToMove;
     
 
     
     int castlingRights;
 
     // En passant
-    int enPassantSquare; // -1 if none
+    int enPassantSquare = -1;
 
     // Half-move clock (50-move rule)
     int halfmoveClock;
-
-    // Fullmove number
     int fullmoveNumber;
+
+    int eval;
 
     u64 hash;
 };
@@ -258,32 +259,38 @@ struct Move {
     int to = -1;
     int from2 = -1;
     int to2 = -1;
+    Piece piece;
     Piece captured = NONE;
     Piece promotion = NONE;
+    u_int8_t flags =  QUIET;
 
+
+    
     bool operator==(const Move& other) const {
         return from == other.from &&
                to == other.to &&
                from2 == other.from2 &&
                to2 == other.to2 &&
+               captured == other.captured &&
                promotion == other.promotion;
+    }
+
+    bool operator!=(const Move& other) const {
+        return !(*this == other);
     }
 };
 
 
 struct Undo {
-    int from, to;
-    int from2, to2;
+    int enPassantSquare = -1;
+    int castlingRights;
+    u64 hash;
+    int halfmoveClock;
 
-    Piece movedPiece;
-    Piece capturedPiece;
-    
-    bool wasEnPassant;
-    int capturedSquare = 0;
+    Color side;
+    bool nullMove = false;
 
-    int prevEnPassant;
-    int prevCastlingRights;
-    u64 prevHash;
+    int eval;
 };
 
 
@@ -296,12 +303,16 @@ struct GoParams {
     bool infinite = false;
 };
 
-extern Move killerMoves[64][2]; // [depth][2 slots]
 
-extern int history[2][64][64]; // side, from, to
 
 
 
 
 enum TTFlag { EXACT, LOWERBOUND, UPPERBOUND };
+
+const int MAX_PLY = 64;
+const int MAX_MOVES = 256;
+
+
+
 

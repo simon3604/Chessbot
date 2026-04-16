@@ -8,21 +8,33 @@
 #include <ctime>
 #include <sstream>
 #include <fstream>
+#include <random>
 #include "constants.h"
 #include "misc.h"
 #include "makeMove.h"
 #include "search.h"
 #include <chrono>
+#include <random>
+#include "movePicker.h"
+
+std::mt19937_64 rng;  // global RNG
+
+void seedRNG(uint64_t seed) {
+    rng.seed(seed);  // deterministic default for debugging
+}
 
 void benchmarkSearch(Board board, int depth, Color side)
 {
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::vector<Move> moves;
 
-    // Instead of search(), call your findBestMove function
-    Move bestMove = findBestMove(board, side, depth, moves);
+    std::chrono::steady_clock::time_point tp = std::chrono::steady_clock::now(); 
+
+    GoParams go = {};
+    go.depth = depth;
+
+    Move bestMove = search(board, go);
 
     auto end = std::chrono::high_resolution_clock::now();
 
@@ -61,10 +73,6 @@ std::string print_bitboardForLog(u64 bb) {
 }
 
 
-void checkBoard(const Board& board) {
-    u64 bb = board.king_white; 
-    logToFile(print_bitboardForLog(bb));
-}
 
 
 std::string printBoardAsLetters(const Board& board, bool forLog) {
@@ -76,18 +84,18 @@ std::string printBoardAsLetters(const Board& board, bool forLog) {
 
                 u64 mask = 1ULL << sq;
 
-                if (mask & board.pawns_white)   c = 'P';
-                else if (mask & board.knights_white) c = 'N';
-                else if (mask & board.bishops_white) c = 'B';
-                else if (mask & board.rooks_white)   c = 'R';
-                else if (mask & board.queens_white)  c = 'Q';
-                else if (mask & board.king_white)    c = 'K';
-                else if (mask & board.pawns_black)   c = 'p';
-                else if (mask & board.knights_black) c = 'n';
-                else if (mask & board.bishops_black) c = 'b';
-                else if (mask & board.rooks_black)   c = 'r';
-                else if (mask & board.queens_black)  c = 'q';
-                else if (mask & board.king_black)    c = 'k';
+                if (mask & board.pieces[WP])   c = 'P';
+                else if (mask & board.pieces[WN]) c = 'N';
+                else if (mask & board.pieces[WB]) c = 'B';
+                else if (mask & board.pieces[WR])   c = 'R';
+                else if (mask & board.pieces[WQ])  c = 'Q';
+                else if (mask & board.pieces[WK])    c = 'K';
+                else if (mask & board.pieces[BP])   c = 'p';
+                else if (mask & board.pieces[BN]) c = 'n';
+                else if (mask & board.pieces[BB]) c = 'b';
+                else if (mask & board.pieces[BR])   c = 'r';
+                else if (mask & board.pieces[BQ])  c = 'q';
+                else if (mask & board.pieces[BK])    c = 'k';
 
                 std::cerr << c << " ";
             }
@@ -103,18 +111,18 @@ std::string printBoardAsLetters(const Board& board, bool forLog) {
 
                 u64 mask = 1ULL << sq;
 
-                if (mask & board.pawns_white)   c = 'P';
-                else if (mask & board.knights_white) c = 'N';
-                else if (mask & board.bishops_white) c = 'B';
-                else if (mask & board.rooks_white)   c = 'R';
-                else if (mask & board.queens_white)  c = 'Q';
-                else if (mask & board.king_white)    c = 'K';
-                else if (mask & board.pawns_black)   c = 'p';
-                else if (mask & board.knights_black) c = 'n';
-                else if (mask & board.bishops_black) c = 'b';
-                else if (mask & board.rooks_black)   c = 'r';
-                else if (mask & board.queens_black)  c = 'q';
-                else if (mask & board.king_black)    c = 'k';
+                if (mask & board.pieces[WP])   c = 'P';
+                else if (mask & board.pieces[WN]) c = 'N';
+                else if (mask & board.pieces[WB]) c = 'B';
+                else if (mask & board.pieces[WR])   c = 'R';
+                else if (mask & board.pieces[WQ])  c = 'Q';
+                else if (mask & board.pieces[WK])    c = 'K';
+                else if (mask & board.pieces[BP])   c = 'p';
+                else if (mask & board.pieces[BN]) c = 'n';
+                else if (mask & board.pieces[BB]) c = 'b';
+                else if (mask & board.pieces[BR])   c = 'r';
+                else if (mask & board.pieces[BQ])  c = 'q';
+                else if (mask & board.pieces[BK])    c = 'k';
 
                 log += c;
                 log += " ";
@@ -138,19 +146,19 @@ std::string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 Board fenUnloader(const std::string& fen) {
     int square = 56;
     Board board = {};
-    board.pawns_white = 0;
-    board.knights_white = 0;
-    board.bishops_white = 0;
-    board.rooks_white = 0;
-    board.queens_white = 0;
-    board.king_white = 0;
+    board.pieces[WP] = 0;
+    board.pieces[WN] = 0;
+    board.pieces[WB] = 0;
+    board.pieces[WR] = 0;
+    board.pieces[WQ] = 0;
+    board.pieces[WK] = 0;
 
-    board.pawns_black = 0;
-    board.knights_black = 0;
-    board.bishops_black = 0;
-    board.rooks_black = 0;
-    board.queens_black = 0;
-    board.king_black = 0;
+    board.pieces[BP] = 0;
+    board.pieces[BN] = 0;
+    board.pieces[BB] = 0;
+    board.pieces[BR] = 0;
+    board.pieces[BQ] = 0;
+    board.pieces[BK] = 0;
 
     board.all_white = 0;
     board.all_black = 0;
@@ -174,51 +182,51 @@ Board fenUnloader(const std::string& fen) {
             u64 bit = 1ULL << square;
             switch(c) {
                 case 'P': 
-                    board.pawns_white   |= bit; 
+                    board.pieces[WP]   |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'N': 
-                    board.knights_white |= bit; 
+                    board.pieces[WN] |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'B': 
-                    board.bishops_white |= bit; 
+                    board.pieces[WB] |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'R': 
-                    board.rooks_white   |= bit; 
+                    board.pieces[WR]   |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'Q': 
-                    board.queens_white  |= bit; 
+                    board.pieces[WQ]  |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'K': 
-                    board.king_white    |= bit; 
+                    board.pieces[WK] |= bit; 
                     board.all_white |= bit;
                     break;
                 case 'p': 
-                    board.pawns_black   |= bit; 
+                    board.pieces[BP]   |= bit; 
                     board.all_black |= bit;
                     break;
                 case 'n': 
-                    board.knights_black |= bit; 
+                    board.pieces[BN] |= bit; 
                     board.all_black |= bit;
                     break;
                 case 'b': 
-                    board.bishops_black |= bit; 
+                    board.pieces[BB] |= bit; 
                     board.all_black |= bit;
                     break;
                 case 'r': 
-                    board.rooks_black   |= bit; 
+                    board.pieces[BR]   |= bit; 
                     board.all_black |= bit;
                     break;
                 case 'q': 
-                    board.queens_black  |= bit; 
+                    board.pieces[BQ]  |= bit; 
                     board.all_black |= bit;
                     break;
                 case 'k': 
-                    board.king_black    |= bit; 
+                    board.pieces[BK]    |= bit; 
                     board.all_black |= bit;
                     break;
             }
@@ -227,19 +235,21 @@ Board fenUnloader(const std::string& fen) {
     }
 
     if (stm == "w") {
-        sideToMove = WHITE;
+        board.sideToMove = WHITE;
     } else {
-        sideToMove = BLACK;
+        board.sideToMove = BLACK;
     }
     
     
     board.castlingRights = 0;
 
-    if (castling.find('K') != std::string::npos) board.castlingRights |= WK;
-    if (castling.find('Q') != std::string::npos) board.castlingRights |= WQ;
-    if (castling.find('k') != std::string::npos) board.castlingRights |= BK;
-    if (castling.find('q') != std::string::npos) board.castlingRights |= BQ;
+    if (castling.find('K') != std::string::npos) board.castlingRights |= CWK;
+    if (castling.find('Q') != std::string::npos) board.castlingRights |= CWQ;
+    if (castling.find('k') != std::string::npos) board.castlingRights |= CBK;
+    if (castling.find('q') != std::string::npos) board.castlingRights |= CBQ;
     
+
+
     if (ep != "-") {
         int file = ep[0] - 'a';
         int rank = ep[1] - '1';
@@ -248,6 +258,9 @@ Board fenUnloader(const std::string& fen) {
         board.enPassantSquare = -1;
     }
     
+    board.hash = 0;
+    board.hash = computeHash(board, board.sideToMove);
+
     return board;
 }
 
@@ -287,22 +300,30 @@ Board fenUnloader(const std::string& fen) {
 int pieceValueAtSq(const Board& board, int sq) {
     if (sq < 0 || sq > 63) return 0;
     u64 mask = 1ULL << sq;
-    if (mask & board.queens_white)  return QUEEN_VALUE;
-    if (mask & board.rooks_white)   return ROOK_VALUE;
-    if (mask & board.bishops_white) return BISHOP_VALUE;
-    if (mask & board.knights_white) return KNIGHT_VALUE;
-    if (mask & board.pawns_white)   return PAWN_VALUE;
-    if (mask & board.king_white)    return KING_VALUE;
-    if (mask & board.queens_black)  return QUEEN_VALUE;
-    if (mask & board.rooks_black)   return ROOK_VALUE;
-    if (mask & board.bishops_black) return BISHOP_VALUE;
-    if (mask & board.knights_black) return KNIGHT_VALUE;
-    if (mask & board.pawns_black)   return PAWN_VALUE;
-    if (mask & board.king_black)    return KING_VALUE;
+    if (mask & board.pieces[WQ])  return QUEEN_VALUE;
+    if (mask & board.pieces[WR])   return ROOK_VALUE;
+    if (mask & board.pieces[WB]) return BISHOP_VALUE;
+    if (mask & board.pieces[WN]) return KNIGHT_VALUE;
+    if (mask & board.pieces[WP])   return PAWN_VALUE;
+    if (mask & board.pieces[WK])    return KING_VALUE;
+    if (mask & board.pieces[BQ])  return QUEEN_VALUE;
+    if (mask & board.pieces[BR])   return ROOK_VALUE;
+    if (mask & board.pieces[BB]) return BISHOP_VALUE;
+    if (mask & board.pieces[BN]) return KNIGHT_VALUE;
+    if (mask & board.pieces[BP])   return PAWN_VALUE;
+    if (mask & board.pieces[BK])    return KING_VALUE;
     return 0;
 }
 
 
+bool has_non_pawn_material(Board& board, Color side) {
+    if (side == WHITE) {
+        if (board.all_white & ~board.pieces[WP] & ~board.pieces[WK]) return true;
+    } else if (side == WHITE) {
+        if (board.all_black & ~board.pieces[BP] & ~board.pieces[BK]) return true;
+    }
+    return false;
+}
 
 Move parseUCIMove(const std::string& moveStr, Board& board) {
     // Defensive check
@@ -325,19 +346,31 @@ Move parseUCIMove(const std::string& moveStr, Board& board) {
     // Handle optional promotion piece (e.g. "q", "r", "b", "n")
     Piece promotion = NONE;
     if (moveStr.size() == 5) {
-        switch (moveStr[4]) {
-            case 'q': promotion = QUEEN; break;
-            case 'r': promotion = ROOK;  break;
-            case 'b': promotion = BISHOP; break;
-            case 'n': promotion = KNIGHT; break;
+    
+        if (board.sideToMove == WHITE) {
+            switch (moveStr[4]) {
+                case 'q': promotion = WQ; break;
+                case 'r': promotion = WR;  break;
+                case 'b': promotion = WB; break;
+                case 'n': promotion = WN; break;
+            }
+        } else if (board.sideToMove == BLACK) {
+            switch (moveStr[4]) {
+                case 'q': promotion = BQ; break;
+                case 'r': promotion = BR;  break;
+                case 'b': promotion = BB; break;
+                case 'n': promotion = BN; break;
+            }
         }
+        
+        
     }
 
     //Handle captures
     Piece captured = NONE;
-    u64 opp = (sideToMove == WHITE) ? board.all_black : board.all_white;
+    u64 opp = (board.sideToMove == WHITE) ? board.all_black : board.all_white;
     if (to == board.enPassantSquare) {
-        int epCapture = (sideToMove == WHITE) ? to - 8 : to + 8;
+        int epCapture = (board.sideToMove == WHITE) ? to - 8 : to + 8;
         captured = getPieceType(board, epCapture);
     } else if ((1ULL << to) & opp) {
         captured = getPieceType(board, to);
@@ -407,6 +440,9 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
 
         board = fenUnloader(fen);
 
+
+        
+
        
 
     }
@@ -417,102 +453,101 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
         std::string moveStr;
         while (iss >> moveStr) {
             Move move = parseUCIMove(moveStr, board);
-            makeMove(move, board, sideToMove);
-            if (sideToMove == WHITE) {
-                sideToMove = BLACK;
-            } else {
-                sideToMove = WHITE;
-            }
+            makeMove(move, board);
+        
         }
     }
 
     
     
-   
 }
 
 bool sameBoard(const Board& a, const Board& b)
 {
-    
-        if (a.pawns_white   != b.pawns_white) {
+    bool same = true;
+        if (a.pieces[BP]   != b.pieces[WP]) {
             std::cout << "Undo -> Pawns";
-            return false;
+           
+            same = false;
         }   
-        if (a.knights_white   != b.knights_white) {
+        if (a.pieces[WN]   != b.pieces[WN]) {
             std::cout << "Undo -> Knights";
-            return false;
+            same = false;
         }
-        if (a.bishops_white   != b.bishops_white) {
+        if (a.pieces[WN]   != b.pieces[WN]) {
             std::cout << "Undo -> Bishops";
-            return false;
+            same = false;
         }
-        if (a.rooks_white   != b.rooks_white) {
+        if (a.pieces[WR]   != b.pieces[WR]) {
             std::cout << "Undo -> Rooks";
-            return false;
+            same = false;
         }
-        if (a.queens_white   != b.queens_white) {
+        if (a.pieces[WQ]   != b.pieces[WQ]) {
             std::cout << "Undo -> Queens";
-            return false;
+            same = false;
         }
-        if (a.king_white   != b.king_white) {
+        if (a.pieces[WK]   != b.pieces[WK]) {
             std::cout << "Undo -> King";
-            return false;
+            same = false;
         }
 
-        if (a.pawns_black != b.pawns_black) {
+        if (a.pieces[BP] != b.pieces[BP]) {
             std::cout << "Undo -> Pawns";
-            return false;
+            
+            same = false;
         }   
-        if (a.knights_black   != b.knights_black) {
+        if (a.pieces[BN]   != b.pieces[BN]) {
             std::cout << "Undo -> Knights";
-            return false;
+            same = false;
         }
-        if (a.bishops_black   != b.bishops_black) {
+        if (a.pieces[BB]   != b.pieces[BB]) {
             std::cout << "Undo -> Bishops";
-            return false;
+            same = false;
         }
-        if (a.rooks_black  != b.rooks_black) {
+        if (a.pieces[BR]  != b.pieces[BR]) {
             std::cout << "Undo -> Rooks";
-            return false;
+            same = false;
         }
-        if (a.queens_black  != b.queens_black) {
+        if (a.pieces[BQ]  != b.pieces[BQ]) {
             std::cout << "Undo -> Queens";
-            return false;
+            same = false;
         }
-        if (a.king_black   != b.king_black) {
+        if (a.pieces[BK]  != b.pieces[BK]) {
             std::cout << "Undo -> King";
-            return false;
+            same = false;
         }
 
         if (a.enPassantSquare != b.enPassantSquare) {
             std::cout << "Undo -> Ep";
-            return false;
+            same = false;
         }
         if (a.castlingRights != b.castlingRights) {
             std::cout << "Undo -> Castlingrights";
-            return false;
+            same = false;
         }
         if (a.halfmoveClock != b.halfmoveClock) {
             std::cout << "Undo -> HalfMoveClock";
-            return false;
+            same = false;
         }
         if (a.fullmoveNumber != b.fullmoveNumber) {
             std::cout << "Undo -> fullMoveNumber";
-            return false;
+            same = false;
         }
         if (a.all_black != b.all_black) {
             std::cout << "Undo -> all_black";
-            return false;
+            same = false;
         }
         if (a.all_white != b.all_white) {
+            print_bitboard(a.all_white);
+            print_bitboard(b.all_white);
             std::cout << "Undo -> all_white";
-            return false;
+            same = false;
         }
         if (a.hash != b.hash) {
             std::cout << "Undo -> hash";
-            return false;
+            same = false;
         }
-        return true;
+        return same;
 }
 
 Color getColor(const Board& board, int sq) {
@@ -527,42 +562,44 @@ Color getColor(const Board& board, int sq) {
 }
 
 
-u64 perft(Board& board, int depth, Color side, u64& captures, u64& promotions, u64& castles, u64& enPassants, u64& checks, u64& checkmates) {
+u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64& castles, u64& enPassants, u64& checks, u64& checkmates) {
     if (depth == 0)
         return 1;
 
-    std::vector<Move> moves;
-    generateLegalMoves(board, side, moves);
+    Color side = board.sideToMove;
+
+    Move* moves = moveStack[ply];
+    int count = generateLegalMoves(board, side, moves);
     Color opp = (side == WHITE) ? BLACK : WHITE;
 
     u64 nodes = 0;
     u64 total = 0;
     
 
-    for (Move m : moves) {
-        Undo u = makeMove(m, board, side);
+    for (int i = 0; i < count; i++) {
+        Move m = moves[i];
+        Undo u = makeMove(m, board);
 
         if (depth == 1) {
-            if (m.captured != NONE || u.wasEnPassant) captures++;
+            if (m.captured != NONE || (m.flags & ENPASSANT)) captures++;
             if (m.promotion != NONE) promotions++;
             if (m.from2 != -1) castles++;
-            if (u.wasEnPassant) enPassants++;
+            if (m.flags & ENPASSANT) enPassants++;
             bool inCheck = isKingInCheck(opp, board);
             if (inCheck) {
                 checks++;
-                std::vector<Move> oppMoves;
-                generateLegalMoves(board, opp, oppMoves);
-                if (oppMoves.empty()) checkmates++;
+                Move* oppMoves = moveStack[ply + 1];
+                int oppCount = generateLegalMoves(board, opp, oppMoves);
+                if (oppCount == 0) checkmates++;
             }
 
         }
         
         
-
-        nodes = perft(board, depth - 1, (side == WHITE) ? BLACK : WHITE, captures, promotions, castles, enPassants, checks, checkmates);
+        nodes = perft(board, ply + 1, depth - 1, captures, promotions, castles, enPassants, checks, checkmates);
         total += nodes;
 
-        undoMove(m, board, side, u);
+        undoMove(m, board, u);
         if (depth == 3) {
             std::cout << numToPos(m.from) << numToPos(m.to) << ": " << nodes << "\n";
     
@@ -574,27 +611,91 @@ u64 perft(Board& board, int depth, Color side, u64& captures, u64& promotions, u
 }
 
 void initZobrist() {
-    for (int c = 0; c < 2; c++)
-        for (int p = 0; p < 6; p++)
-            for (int sq = 0; sq < 64; sq++)
-                zobrist[c][p][sq] = rand64();
+   
+    std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
 
-    zobristSide = rand64();
+    // pieces
+
+    for (int p = 0; p < 12; p++) {
+        for (int sq = 0; sq < 64; sq++) {
+            zobrist[p][sq] = dist(rng);
+        }
+    }
+    
+
+
+    // side
+    zobristSide = dist(rng);
+
+    // castling
+    for (int i = 0; i < 16; i++)
+        zobristCastling[i] = dist(rng);
+
+    // en passant
+    for (int i = 0; i < 8; i++)
+        zobristEnPassant[i] = dist(rng);
+}
+
+
+bool canEnPassant(const Board& board, Color side) {
+
+    int epSq = board.enPassantSquare;
+    u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
+    int fromEp;
+
+    if (side == WHITE) {
+        if (epSq % 8 != 0) {  // left EP
+            fromEp = epSq - 9;
+            if ((fromEp >= 0 && fromEp < 64) && (pawns & (1ULL << fromEp))) {
+                return true;
+            }
+        }
+        if (epSq % 8 != 7) {  // right EP
+            fromEp = epSq - 7;
+            if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp))) {
+                return true;            
+            }
+        }
+    } else {  // black
+        if (epSq % 8 != 0) {  // left EP
+            fromEp = epSq + 7;
+            if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp))) { 
+                return true;
+            }
+        }
+        if (epSq % 8 != 7) {  // right EP
+            fromEp = epSq + 9;
+            if (fromEp >= 0 && fromEp < 64 && (pawns & (1ULL << fromEp))) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 u64 computeHash(const Board& board, Color side) {
     u64 hash = 0;
 
+    // Pieces
     for (int sq = 0; sq < 64; sq++) {
         Piece p = getPieceType(board, sq);
         if (p != NONE) {
-            Color c = getColor(board, sq);
-            hash ^= zobrist[c][p][sq];
+            
+            hash ^= zobrist[p][sq];
         }
     }
 
-    if (side == BLACK)
+    // Side to move
+    if (board.sideToMove == BLACK)
         hash ^= zobristSide;
+
+    // Castling rights
+    hash ^= zobristCastling[board.castlingRights];
+
+    // if (board.enPassantSquare != -1) {
+    //     int file = board.enPassantSquare % 8;
+    //     hash ^= zobristEnPassant[file];
+    // }
 
     return hash;
 }
@@ -602,17 +703,29 @@ u64 computeHash(const Board& board, Color side) {
 char getPieceLetter(Piece piece) {
     switch (piece)
     {
-    case QUEEN:
+    case WQ:
         return 'q';
 
-    case ROOK:
+    case WR:
         return 'r';
 
-    case BISHOP:
+    case WB:
         return 'b';
 
-    case KNIGHT:
+    case WN:
         return 'n';
+    case BQ:
+        return 'q';
+
+    case BR:
+        return 'r';
+
+    case BB:
+        return 'b';
+
+    case BN:
+        return 'n';
+
 
     
     }
@@ -664,11 +777,11 @@ bool hasPawnOnFile(const Board& board, int file, Color side) {
 
 
     if (side == WHITE) {
-        if (fileBB & board.pawns_white) {
+        if (fileBB & board.pieces[WP]) {
             return true;
         }
     } else if (side == BLACK) {
-        if (fileBB & board.pawns_black) {
+        if (fileBB & board.pieces[BP]) {
             return true;
         }
     }
@@ -700,11 +813,11 @@ u64 attackers(const Board& board, Color side, int sq) {
     if (side == WHITE) {
         //PAWNS
         
-        if ((sqBB >> 7) & ~FILE_A & board.pawns_white) {
+        if ((sqBB >> 7) & ~FILE_A & board.pieces[WP]) {
             if ((sq - 7) >= 0)
             attackers &= 1ULL >> sq - 7;
         }
-        if ((sqBB >> 9) & ~FILE_H & board.pawns_white) {
+        if ((sqBB >> 9) & ~FILE_H & board.pieces[BP]) {
             if ((sq - 9) >= 0)
             attackers &= 1ULL >> sq - 9;
         }
@@ -712,7 +825,7 @@ u64 attackers(const Board& board, Color side, int sq) {
 
 
         //KNIGHTS
-        u64 knights = knightAttacks[sq] & board.knights_white;
+        u64 knights = knightAttacks[sq] & board.pieces[WN];
 
         while (knights) {
 
@@ -722,7 +835,7 @@ u64 attackers(const Board& board, Color side, int sq) {
 
 
         //KING
-        u64 king = kingAttacks[sq] & board.king_white;
+        u64 king = kingAttacks[sq] & board.pieces[WK];
 
         while (king) {
 
@@ -731,7 +844,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //BISHOPS
-        u64 bishops = getBishopAttackMagics(sq, occ) & board.bishops_white;
+        u64 bishops = getBishopAttackMagics(sq, occ) & board.pieces[WB];
 
         while (bishops) {
 
@@ -740,7 +853,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //ROOKS
-        u64 rooks = getRookAttackMagics(sq, occ) & board.rooks_white;
+        u64 rooks = getRookAttackMagics(sq, occ) & board.pieces[WR];
 
         while (rooks) {
 
@@ -749,7 +862,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //QUEENS
-        u64 queens = getBishopAttackMagics(sq, occ) & getRookAttackMagics(sq, occ) & board.queens_white;
+        u64 queens = getBishopAttackMagics(sq, occ) & getRookAttackMagics(sq, occ) & board.pieces[WQ];
 
         while (queens) {
 
@@ -760,17 +873,17 @@ u64 attackers(const Board& board, Color side, int sq) {
         
         //PAWNS
         
-        if ((sqBB << 7) & ~FILE_H & board.pawns_black) {
+        if ((sqBB << 7) & ~FILE_H & board.pieces[WP]) {
             if ((sq + 7) <= 63)
             attackers |= 1ULL >> sq + 7;
         }
-        if ((sqBB << 9) & ~FILE_A & board.pawns_black) {
+        if ((sqBB << 9) & ~FILE_A & board.pieces[BP]) {
             if ((sq + 9) <= 63)
             attackers |= 1ULL >> sq + 9;
         }
 
         //KNIGHTS
-        u64 knights = knightAttacks[sq] & board.knights_black;
+        u64 knights = knightAttacks[sq] & board.pieces[BN];
 
         while (knights) {
 
@@ -780,7 +893,7 @@ u64 attackers(const Board& board, Color side, int sq) {
 
 
         //KING
-        u64 king = kingAttacks[sq] & board.king_black;
+        u64 king = kingAttacks[sq] & board.pieces[BK];
 
         while (king) {
 
@@ -789,7 +902,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //BISHOPS
-        u64 bishops = getBishopAttackMagics(sq, occ) & board.bishops_black;
+        u64 bishops = getBishopAttackMagics(sq, occ) & board.pieces[BB];
 
         while (bishops) {
 
@@ -798,7 +911,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //ROOKS
-        u64 rooks = getRookAttackMagics(sq, occ) & board.rooks_black;
+        u64 rooks = getRookAttackMagics(sq, occ) & board.pieces[BR];
 
         while (rooks) {
 
@@ -807,7 +920,7 @@ u64 attackers(const Board& board, Color side, int sq) {
         }
 
         //QUEENS
-        u64 queens = getBishopAttackMagics(sq, occ) & getRookAttackMagics(sq, occ) & board.queens_black;
+        u64 queens = getBishopAttackMagics(sq, occ) & getRookAttackMagics(sq, occ) & board.pieces[BQ];
 
         while (queens) {
 
@@ -821,4 +934,9 @@ u64 attackers(const Board& board, Color side, int sq) {
 
 }
 
+void hashXor(Board& board, u64& hash, u64 key, const std::string& label) {
+    std::cout << label << " XOR " << key << "hash: " << hash << "\n";
+    hash ^= key;
 
+    std::cout << "Correct hash (white): " << computeHash(board, board.sideToMove) << "\n";
+}

@@ -10,10 +10,13 @@
 #include "moveGen.h"
 #include "misc.h"
 
-void generateLegalMoves( Board& board, Color side, std::vector<Move>& moves);
+bool isMoveLegal(Board& board, Move m, Color side);
+
+int generateLegalMoves( Board& board, Color side, Move* moves);
 bool isSquareAttacked(const Board& board, Color Side, int attackedSquare);
 
 bool isKingInCheck(Color Side, const Board &board);
 
-void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves);
+int generateCaptures(Board& board, Color side, Move* moves);
 
+int generateQuietMoves(Board& board, Move* moves);

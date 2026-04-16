@@ -9,4 +9,3 @@
 
 int evaluate(const Board& board, Color side); 
 
-int scoreMove(const Board& board, Move& m, Color side, int depth);

@@ -18,7 +18,7 @@ int msb(u64 bb);
 int popcount(u64 x);
 
 
-Move mkMove(int from, int to, int from2, int to2, Piece captured, Piece promotion);
+Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, u_int8_t flag);
 u64 setOccupancy(int index, int bits, u64 mask);
 
 
@@ -53,17 +53,17 @@ u64 getQueenAttackMagics(int sq, u64 occ);
 
 
 
-void generatePawnMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generatePawnMoves(const Board& board, Color Side, u64 occ, Move* moves);
 
-void generateKnightMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generateKnightMoves(const Board& board, Color Side, u64 occ, Move* moves);
 
-void generateRookMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves);
 
-void generateBishopMoves(Board &board, Color side, std::vector<Move> &moves);
+int generateBishopMoves(Board &board, Color side, u64 occ, Move* moves);
 
-void generateQueenMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves);
 
-void generateKingMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves);
 
-void generatePseudoLegalMoves(const Board& board, Color Side, std::vector<Move>& moves);
+int generatePseudoLegalMoves(const Board& board, Color Side, Move* moves);
 

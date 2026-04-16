@@ -17,15 +17,24 @@ inline int msb(u64 bb) { return 63 - __builtin_clzll(bb); }
 inline int popcount(u64 x) { return __builtin_popcountll(x); }
 
 
-inline Move mkMove(int from, int to, int from2, int to2, Piece captured, Piece promotion)
+inline Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, u_int8_t flags)
 {
     Move m;
     m.from = from;
     m.to = to;
     m.from2 = from2;
     m.to2 = to2;
+    m.piece = piece;
     m.captured = captured;
     m.promotion = promotion;
+    m.flags = flags;
+
+    if (piece == NONE) {
+        std::cout << "ERROR: mkMove created NONE piece!\n";
+        std::cout << "from=" << from << " to=" << to << "\n";
+        std::cout << "flags=" << (int)flags << "\n";
+        exit(1);
+    }
     return m;
 }
 
@@ -252,10 +261,12 @@ inline u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq
 
 
 
-void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move>& moves)
+int generatePawnMoves(const Board& board, Color side, u64 occ, Move* moves)
 {
-    u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
+    u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
     u64 empty = ~(board.all_white | board.all_black);
+
+    int count = 0;
 
     if (side == WHITE)
     {
@@ -271,14 +282,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WQ, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WR, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WB, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WN, PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, NONE, QUIET);
             }
         }
 
@@ -292,7 +303,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             int fromSq = toSq - 16;
 
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, NONE, QUIET);
         }
 
         // === Captures left ===
@@ -308,14 +319,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
             }
         }
 
@@ -332,14 +343,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
             }
         }
 
@@ -360,7 +371,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
                     int fromSq = toSq - 7;
 
-                    moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                    moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
                 }
 
                 // right EP (<<9)
@@ -373,7 +384,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
                     int fromSq = toSq - 9;
 
-                    moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                    moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
                 }
             }
     }
@@ -391,14 +402,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BQ, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BR, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BB, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BN, PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, NONE, QUIET);
             }
         }
 
@@ -412,7 +423,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             int fromSq = toSq + 16;
 
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, NONE, NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, NONE, QUIET);
         }
 
         // === Captures left ===
@@ -427,14 +438,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
             }
         }
 
@@ -450,14 +461,14 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
             }
         }
 
@@ -477,7 +488,7 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
                 int fromSq = toSq + 9;
 
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
             }
 
             // right EP (>>7)
@@ -490,17 +501,25 @@ void generatePawnMoves(const Board& board, Color side, u64 occ, std::vector<Move
 
                 int fromSq = toSq + 7;
 
-                moves.push_back(mkMove(fromSq, toSq, -1, -1, PAWN, NONE));
+                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
             }
         }
     }
+
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
+    return count;
 }
 
-void generateKnightMoves(const Board& board, Color Side, u64 occ, std::vector<Move>& moves) {
+int generateKnightMoves(const Board& board, Color Side, u64 occ, Move* moves) {
 
-    u64 knights = (Side == WHITE) ? board.knights_white : board.knights_black;
+    u64 knights = (Side == WHITE) ? board.pieces[WN] : board.pieces[BN];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
+
+    int count = 0;
 
     while (knights)
     {
@@ -520,19 +539,23 @@ void generateKnightMoves(const Board& board, Color Side, u64 occ, std::vector<Mo
             } else {
                 captured = NONE;
             }
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, captured, NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WN : BN, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
 
-    
-
-    
+    return count;
 };
 
-void generateRookMoves(const Board& board, Color Side, u64 occ, std::vector<Move>& moves) {
-    u64 rooks = (Side == WHITE) ? board.rooks_white : board.rooks_black;
+int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+    u64 rooks = (Side == WHITE) ? board.pieces[WR] : board.pieces[BR];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
+
+    int count = 0;
 
     while (rooks)
     {
@@ -553,19 +576,24 @@ void generateRookMoves(const Board& board, Color Side, u64 occ, std::vector<Move
             } else {
                 captured = NONE;
             }
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, captured, NONE));
-            // std::cout << "move: " << fromSq << " → " << "R" << "\n";
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WR : BR, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
 
-    
+    return count;
 };
 
-void generateBishopMoves(const Board &board, Color Side, u64 occ, std::vector<Move> &moves)
+int generateBishopMoves(const Board &board, Color Side, u64 occ, Move* moves)
 {
-    u64 bishops = (Side == WHITE) ? board.bishops_white : board.bishops_black;
+    u64 bishops = (Side == WHITE) ? board.pieces[WB] : board.pieces[BB];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
+
+    int count = 0;
 
     while (bishops)
     {
@@ -586,19 +614,23 @@ void generateBishopMoves(const Board &board, Color Side, u64 occ, std::vector<Mo
             } else {
                 captured = NONE;
             }
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, captured, NONE));
-            // std::cout << "move: " << fromSq << " → " << "\n";
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WB : BB, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
 
-    
+    return count;
 }
 
-void generateQueenMoves(const Board& board, Color Side, u64 occ, std::vector<Move>& moves) {
-    u64 queens = (Side == WHITE) ? board.queens_white : board.queens_black;
+int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+    u64 queens = (Side == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
 
+    int count = 0;
 
     while (queens)
     {
@@ -619,22 +651,25 @@ void generateQueenMoves(const Board& board, Color Side, u64 occ, std::vector<Mov
             } else {
                 captured = NONE;
             }
-            Move m = mkMove(fromSq, toSq, -1, -1, captured, NONE);
-            m.promotion = NONE;
-            moves.push_back(m);
-            // std::cout << "move: " << fromSq << " → " << "\n";
-            // std::cout << fromSq << "->" << toSq << std::endl;
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WQ : BQ, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+
+            
         }
     }
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
 
-    
+    return count;
 }
 
-void generateKingMoves(const Board& board, Color Side, u64 occ, std::vector<Move>& moves) {
-    u64 king = (Side == WHITE) ? board.king_white : board.king_black;
+int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+    u64 king = (Side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
 
+    int count = 0;
 
     if (king)
     {
@@ -655,74 +690,85 @@ void generateKingMoves(const Board& board, Color Side, u64 occ, std::vector<Move
             } else {
                 captured = NONE;
             }
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, captured, NONE));
-            // std::cout << "move: " << fromSq << " → " << toSq << "Kk" << "\n";
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WK : BK, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
 
             
         }
         
         // White King-side (O-O)
-        if (Side == WHITE && fromSq == 4 && (board.castlingRights & WK)) {
-            if ((board.rooks_white & (1ULL << 7)) &&         // rook exists on h1
+        if (Side == WHITE && fromSq == 4 && (board.castlingRights & CWK)) {
+            if ((board.pieces[WR] & (1ULL << 7)) &&         // rook exists on h1
                 !(occ & ((1ULL << 5) | (1ULL << 6))) &&     // f1 and g1 empty
                 !isSquareAttacked(board, WHITE, 4) &&       // e1 not attacked
                 !isSquareAttacked(board, WHITE, 5) &&       // f1 not attacked
                 !isSquareAttacked(board, WHITE, 6))         // g1 not attacked
             {
-                moves.push_back(mkMove(4, 6, 7, 5, NONE, NONE));
+                moves[count++] = mkMove(4, 6, 7, 5, WK, NONE, NONE, CASTLING);
             }
         }
 
         // White Queen-side (O-O-O)
-        if (Side == WHITE && fromSq == 4 && (board.castlingRights & WQ)) {
-            if ((board.rooks_white & (1ULL << 0)) &&         // rook exists on a1
+        if (Side == WHITE && fromSq == 4 && (board.castlingRights & CWQ)) {
+            if ((board.pieces[WR] & (1ULL << 0)) &&         // rook exists on a1
                 !(occ & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // b1,c1,d1 empty
                 !isSquareAttacked(board, WHITE, 4) &&
                 !isSquareAttacked(board, WHITE, 3) &&
                 !isSquareAttacked(board, WHITE, 2))
             {
-                moves.push_back(mkMove(4, 2, 0, 3, NONE, NONE));
+                moves[count++] = mkMove(4, 2, 0, 3, WK, NONE, NONE, CASTLING);
             }
         }
 
         // Black King-side (O-O)
-        if (Side == BLACK && fromSq == 60 && (board.castlingRights & BK)) {
-            if ((board.rooks_black & (1ULL << 63)) &&
+        if (Side == BLACK && fromSq == 60 && (board.castlingRights & CBK)) {
+            if ((board.pieces[BR] & (1ULL << 63)) &&
                 !(occ & ((1ULL << 61) | (1ULL << 62))) &&
                 !isSquareAttacked(board, BLACK, 60) &&
                 !isSquareAttacked(board, BLACK, 61) &&
                 !isSquareAttacked(board, BLACK, 62))
             {
-                moves.push_back(mkMove(60, 62, 63, 61, NONE, NONE));
+                moves[count++] = mkMove(60, 62, 63, 61, BK, NONE, NONE, CASTLING);
             }
         }
 
         // Black Queen-side (O-O-O)
-        if (Side == BLACK && fromSq == 60 && (board.castlingRights & BQ)) {
-            if ((board.rooks_black & (1ULL << 56)) &&
+        if (Side == BLACK && fromSq == 60 && (board.castlingRights & CBQ)) {
+            if ((board.pieces[BR] & (1ULL << 56)) &&
                 !(occ & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
                 !isSquareAttacked(board, BLACK, 60) &&
                 !isSquareAttacked(board, BLACK, 59) &&
                 !isSquareAttacked(board, BLACK, 58))
             {
-                moves.push_back(mkMove(60, 58, 56, 59, NONE, NONE));
+                moves[count++] = mkMove(60, 58, 56, 59, BK, NONE, NONE, CASTLING);
             }
         }
     }
+
+    if (count >= 256) {
+        std::cout << "OVERFLOW inside generator\n";
+        exit(1);
+    }
+    return count;
     
 };
 
-void generatePseudoLegalMoves(const Board& board, Color Side, std::vector<Move>& moves) {
+int generatePseudoLegalMoves(const Board& board, Color Side, Move* moves) {
     u64 occ = board.all_white | board.all_black;
-    moves.clear();
-    moves.reserve(256);
+    int count = 0;
     
-    generatePawnMoves(board, Side, occ, moves);
-    generateKnightMoves(board, Side, occ, moves);
-    generateKingMoves(board, Side, occ, moves);
-    generateRookMoves(board, Side, occ, moves);
-    generateBishopMoves(board, Side, occ, moves);
-    generateQueenMoves(board, Side, occ, moves);
+    count += generatePawnMoves(board, Side, occ, moves + count);
+    count += generateKnightMoves(board, Side, occ, moves + count);
+    count += generateKingMoves(board, Side, occ, moves + count);
+    count += generateRookMoves(board, Side, occ, moves + count);
+    count += generateBishopMoves(board, Side, occ, moves + count);
+    count += generateQueenMoves(board, Side, occ, moves + count);
+
+    if (count > 256) {
+        std::cout << "Move overflow: " << count << std::endl;
+        exit(1);
+    }
+
+    return count;
 
 };
 

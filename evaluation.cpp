@@ -19,7 +19,8 @@ using u64 = uint64_t;
 
 int kingSafety(const Board& board, Color side) {
     Color oppSide = (side == WHITE) ? BLACK : WHITE;
-    int kingSq = (side == WHITE) ? lsb(board.king_white) :  lsb(board.king_black);
+    u64 kingBB = (side == WHITE) ? WK : BK;
+    int kingSq = lsb(kingBB);
 
     int score = 0;
 
@@ -40,8 +41,8 @@ int kingSafety(const Board& board, Color side) {
         int sq = r * 8 + f;
         if (sq < 0 || sq >= 64) continue;
 
-        if (getPieceType(board, sq) == PAWN &&
-            getColor(board, sq) == side) {
+        u64 pawnBB = (side == WHITE) ? WP : BP; 
+        if (1ULL << sq & pawnBB) {
 
             shieldScore += 15;
 
@@ -112,11 +113,16 @@ int kingSafety(const Board& board, Color side) {
         Piece attackerType = getPieceType(board, attackerSq);
 
         switch (attackerType) {
-            case PAWN:   attackUnits += 1; break;
-            case KNIGHT: attackUnits += 3; break;
-            case BISHOP: attackUnits += 3; break;
-            case ROOK:   attackUnits += 5; break;
-            case QUEEN:  attackUnits += 9; break;
+            case WP:   attackUnits += 1; break;
+            case WN: attackUnits += 3; break;
+            case WB: attackUnits += 3; break;
+            case WR:   attackUnits += 5; break;
+            case WQ:  attackUnits += 9; break;
+            case BP:   attackUnits += 1; break;
+            case BN: attackUnits += 3; break;
+            case BB: attackUnits += 3; break;
+            case BR:   attackUnits += 5; break;
+            case BQ:  attackUnits += 9; break;
         }
     }
 
@@ -153,61 +159,28 @@ int evaluate(const Board& board, Color side) {
     u64 all = board.all_white | board.all_black;
 
     
-    int pstScore = 0;
 
-    //PST
-    while (all) {
-        int pieceSq = lsb(all);
-        all &= all - 1;
-
-        Piece piece = getPieceType(board, pieceSq);
-
-        Color pieceColor = (getColor(board, pieceSq));
-
-        switch (piece)
-        {
-            case PAWN:
-                pstScore += (pieceColor == WHITE) ? PST_PAWN[pieceSq] : -PST_PAWN[63 - pieceSq];
-                break;
-
-            case KNIGHT:
-                pstScore += (pieceColor == WHITE) ? PST_KNIGHT[pieceSq] : -PST_KNIGHT[63 - pieceSq];
-                break;
-
-            case KING:
-                pstScore += (pieceColor == WHITE) ? PST_KING[pieceSq] : -PST_KING[63 - pieceSq];
-                break;
-
-            case BISHOP:
-                pstScore += (pieceColor == WHITE) ? PST_BISHOP[pieceSq] : -PST_BISHOP[63 - pieceSq];
-                break;
-
-            case ROOK:
-                pstScore += (pieceColor == WHITE) ? PST_ROOK[pieceSq] : -PST_ROOK[63 - pieceSq];
-                break;
-
-            case QUEEN:
-                pstScore += (pieceColor == WHITE) ? PST_QUEEN[pieceSq] : -PST_QUEEN[63 - pieceSq];
-                break;
-        }
-        
     
-    }
-    score += pstScore;
     
 
     // --- Material count ---
-    score += popcount(board.pawns_white)   * PAWN_VALUE;
-    score += popcount(board.knights_white) * KNIGHT_VALUE;
-    score += popcount(board.bishops_white) * BISHOP_VALUE;
-    score += popcount(board.rooks_white)   * ROOK_VALUE;
-    score += popcount(board.queens_white)  * QUEEN_VALUE;
+    int whiteMaterial = 0;
+    int blackMaterial = 0;
+    
+    whiteMaterial += popcount(board.pieces[WP])   * PAWN_VALUE;
+    whiteMaterial += popcount(board.pieces[WN]) * KNIGHT_VALUE;
+    whiteMaterial += popcount(board.pieces[WB]) * BISHOP_VALUE;
+    whiteMaterial += popcount(board.pieces[WR])   * ROOK_VALUE;
+    whiteMaterial += popcount(board.pieces[WQ])  * QUEEN_VALUE;
 
-    score -= popcount(board.pawns_black)   * PAWN_VALUE;
-    score -= popcount(board.knights_black) * KNIGHT_VALUE;
-    score -= popcount(board.bishops_black) * BISHOP_VALUE;
-    score -= popcount(board.rooks_black)   * ROOK_VALUE;
-    score -= popcount(board.queens_black)  * QUEEN_VALUE;
+    blackMaterial += popcount(board.pieces[BP])   * PAWN_VALUE;
+    blackMaterial += popcount(board.pieces[BN]) * KNIGHT_VALUE;
+    blackMaterial += popcount(board.pieces[BB]) * BISHOP_VALUE;
+    blackMaterial += popcount(board.pieces[BR])   * ROOK_VALUE;
+    blackMaterial += popcount(board.pieces[BQ])  * QUEEN_VALUE;
+
+    score += whiteMaterial;
+    score -= blackMaterial;
 
 
     //Phase & King Safety
@@ -216,39 +189,12 @@ int evaluate(const Board& board, Color side) {
     int ksBlack = kingSafety(board, BLACK);
 
 
-    int material =
-        popcount(board.queens_white | board.queens_black) * 900 +
-        popcount(board.rooks_white | board.rooks_black) * 500 +
-        popcount(board.knights_white | board.knights_black) * 300 +
-        popcount(board.bishops_white | board.bishops_black) * 300;
-
-    int phase = std::min(material, 4000);
+    int phase = std::min((whiteMaterial + blackMaterial), 4000);
     score += (ksWhite - ksBlack) * phase / 20000;
 
 
     return (side == WHITE) ? score : -score;
 }
 
-int scoreMove(const Board& board, Move& m, Color side, int ply) {
-    Piece victim = getPieceType(board, m.to);
-    Piece attacker = getPieceType(board, m.from);
-
-    // 1. Promotions (VERY high priority)
-    if (m.promotion != NONE) {
-        return 100000 + pieceValue(m.promotion);
-    }
-
-    // 2. Captures (MVV-LVA)
-    if (victim != NONE) {
-        return 10000 + 10 * pieceValue(victim) - pieceValue(attacker);
-    }
-
-    // 3. Killer moves
-    if (m == killerMoves[ply][0]) return 9000;
-    if (m == killerMoves[ply][1]) return 8000;
-
-    // 4. History heuristic
-    return history[side][m.from][m.to];
-}
 
 

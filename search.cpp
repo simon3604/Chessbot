@@ -6,17 +6,18 @@
 #include <bits/stdc++.h>
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
 #include <atomic>
 #include "moveGen.h"
 #include "evaluation.h"
 #include "search.h"
 #include "misc.h"
+#include "movePicker.h"
 
 
 
 using u64 = uint64_t;
 
-std::atomic<bool> stopSearch(false);
 
 const int TT_SIZE = 1 << 20; // ~1M entries 
 
@@ -30,8 +31,13 @@ struct TTEntry {
 
 TTEntry tt[TT_SIZE];
 
-int quiescence(Board& board, int alpha, int beta, Color side) {
+
+
+int quiescence(Board& board, int alpha, int beta, Color side, int ply) {
+    
+    
     nodes++;
+
 
     int stand_pat = evaluate(board, side);
 
@@ -40,22 +46,27 @@ int quiescence(Board& board, int alpha, int beta, Color side) {
     if (stand_pat > alpha)
         alpha = stand_pat;
 
-    std::vector<Move> moves;
-    generateLegalCaptures(board, side, moves);
+    Move* moves = moveStack[ply];
+    int moveCount = generateCaptures(board, side, moves);
 
-    for (auto& m : moves) {
+    for (int i = 0; i < moveCount; i++) {
         
 
-        Undo u = makeMove(m, board, side);
+        Undo u = makeMove(moves[i], board);
+
+        if (isKingInCheck(side, board)) {
+            undoMove(moves[i], board, u);
+            continue;
+        }
 
         int score = -quiescence(
             board,
             -beta,
             -alpha,
-            (side == WHITE ? BLACK : WHITE)
+            (side == WHITE) ? BLACK : WHITE, ply + 1
         );
 
-        undoMove(m, board, side, u);
+        undoMove(moves[i], board, u);
 
         if (score >= beta)
             return beta;
@@ -66,51 +77,97 @@ int quiescence(Board& board, int alpha, int beta, Color side) {
     return alpha;
 }
 
-int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply) {
+int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply, int time, std::chrono::steady_clock::time_point start_time, bool nullAllowed) {
 
     nodes++;
+    //std::cout << "SIDE: " << board.sideToMove << "\n";
+
+    if ((nodes & 1023) == 0) {
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed >= std::chrono::milliseconds(time)) {
+            stopSearch = true;
+            return alpha; 
+        }
+    }
+
     int alphaOriginal = alpha;
     int betaOriginal = beta;
 
+    if (ply >= MAX_PLY) {
+        std::cout << "PLY OVERFLOW\n";
+        exit(1);
+    }
     
-
+    u64 hash = board.hash;
+    int index = hash & (TT_SIZE - 1);
+    
+    TTEntry& entry = tt[index];
     if (depth == 0) {
-
-        return quiescence(board, alpha, beta, side);
+        if (entry.key == hash && entry.depth >= depth) {
+            return entry.score; 
+        }
+        return quiescence(board, alpha, beta, side, ply);
 
     }
 
     Move bestMove;
-    bestMove.from = -1;
-    bestMove.to = -1;
+   
 
 
-    u64 hash = board.hash;
-    int index = hash & (TT_SIZE - 1);
-    TTEntry& entry = tt[index];
+    
     if (entry.key == hash && entry.depth >= depth) {
-        if (entry.flag == EXACT)
+        if (entry.flag == EXACT) {
+            return entry.score; 
+        }
+        if (entry.flag == LOWERBOUND && entry.score >= beta) {
             return entry.score;
+        }
+        if (entry.flag == UPPERBOUND && entry.score <= alpha) {
+            return entry.score;
+        }
+    }
 
-        if (entry.flag == LOWERBOUND)
-            alpha = std::max(alpha, entry.score);
-        else if (entry.flag == UPPERBOUND)
-            beta = std::min(beta, entry.score);
+    if (entry.key == hash && entry.bestMove.from != -1) {
 
-        if (alpha >= beta)
-            return (entry.flag == LOWERBOUND) ? alpha : beta;
+        Undo u = makeMove(entry.bestMove, board);
+
+        if (!isKingInCheck(side, board)) {  
+            int score = -alphaBeta(board, depth - 1,
+                            -beta, -alpha,
+                            (side == WHITE) ? BLACK : WHITE, ply + 1,
+                            time, start_time, true);
+
+            if (score >= beta) {
+                undoMove(entry.bestMove, board, u);
+                return score;
+            }
+
+            if (score > alpha)
+                alpha = score;
+        }
+
+        undoMove(entry.bestMove, board, u);
+    }
+
+    //Null Move Pruning
+    if (depth >= 3 && !isKingInCheck(side, board) && has_non_pawn_material(board, side) && nullAllowed) {
+        Undo u = make_null_move(board);
+
+        int R = 2 + depth / 4;  // reduction
+        GoParams go = {};
+        int score = -alphaBeta(board, depth - 1 - R, -beta, -beta + 1, (side == WHITE) ? BLACK : WHITE, ply + 1, time, start_time, false);
+
+        undo_null_move(board, u);
+
+        if (score >= beta) {
+            return beta; 
+        }
     }
 
 
-    std::vector<Move> moves;
-    generateLegalMoves(board, side, moves);
+    Move* moves = moveStack[ply];
 
-    if (moves.empty()) {
-        if (isKingInCheck(side, board))
-            return -MATE + ply;
-        else
-            return 0; // stalemate
-    }
+   
 
     Color oppSide = (side == WHITE ? BLACK : WHITE);
     int value = -10000000;
@@ -121,48 +178,72 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
     if (entry.key == hash && entry.bestMove.from != -1)
         ttMove = entry.bestMove;
 
+
+
     
+    MovePicker mp(board, ttMove, depth);
+    int moveNumber = 0; 
 
-    // Precompute scores once
-    std::vector<int> scores(moves.size());
-    for (int i = 0; i < moves.size(); i++) {
-        scores[i] = scoreMove(board, moves[i], side, ply);
-    }
+    while (true) {
+        Move m = mp.nextMove(); 
+        Move copy = m;
 
-    if (ttMove.from != -1) {
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i] == ttMove) {
-                std::swap(moves[0], moves[i]);
-                std::swap(scores[0], scores[i]);
-                break;
-            }
-        }
-    }
+        if (m.from == -1) break;  
+        moveNumber++;
 
-
-    // Incremental selection
-    for (int i = 0; i < moves.size(); i++) {
         if (stopSearch) {
             logToFile("Stopsearch");
             return evaluate(board, side);
         }
     
-        int bestIndex = i;
-        for (int j = i+1; j < moves.size(); j++)
-            if (scores[j] > scores[bestIndex])
-                bestIndex = j;
+     
+        bool isCapture = (m.captured != NONE);
+        bool isQuiet = (!isCapture && m.promotion == NONE);
+        bool notCheck = !isKingInCheck(side, board);
 
-        std::swap(moves[i], moves[bestIndex]);
-        std::swap(scores[i], scores[bestIndex]);
+        int reduction = 0;
 
-        Move m = moves[i];
-        bool isCapture = (getPieceType(board, m.to) != NONE);
+        // Apply LMR only in safe conditions
+        if (isQuiet && notCheck && depth >= 4 && moveNumber >= 4) {
+            reduction = 1;
 
-        Undo u = makeMove(m, board, side);
+            if (depth >= 6 && moveNumber >= 8)
+                reduction = 2;
+        }
 
-        int score = -alphaBeta(board, depth-1, -beta, -alpha, oppSide, ply + 1);
 
-        undoMove(m, board, side, u);
+        Color expectedSide = side;
+
+        // std::cout << "MOVE: "
+        //   << numToPos(m.from) << " -> " << numToPos(m.to)
+        //   << " piece=" << m.piece
+        //   << " cap=" << m.captured
+        //   << " promo=" << m.promotion
+        //   << "\n";
+        assert(m.from >= 0 && m.from < 64);
+        assert(m.to >= 0 && m.to < 64); 
+        Undo u = makeMove(copy, board);
+
+        int score;
+
+        if (reduction > 0) {
+            score = -alphaBeta(board, depth - 1 - reduction,
+                            -alpha - 1, -alpha,
+                            oppSide, ply + 1, time, start_time, true);
+
+            if (score > alpha) {
+                score = -alphaBeta(board, depth - 1,
+                                -beta, -alpha,
+                                oppSide, ply + 1, time, start_time, true);
+            }
+        } else {
+            score = -alphaBeta(board, depth - 1,
+                            -beta, -alpha,
+                            oppSide, ply + 1, time, start_time, true);
+        }
+        undoMove(copy, board, u);
+
+        assert(board.sideToMove == expectedSide);
 
         
         if (score > value) {
@@ -187,19 +268,26 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
 
             break;
         }
-        
+        if (stopSearch) {
+            return score;
+        }
     }
 
+    if (value == -10000000) { // no moves found
+        if (isKingInCheck(side, board))
+            return -MATE + ply;
+        else
+            return 0;
+    }
+        
 
-    entry.key = hash;
-    entry.depth = depth;
+    
 
     int storeScore = value;
 
     if (value > MATE - 1) storeScore += ply;
     if (value < -MATE + 1) storeScore -= ply;
 
-    entry.score = storeScore;
 
     if (value <= alphaOriginal)
         entry.flag = UPPERBOUND;
@@ -208,69 +296,99 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply)
     else
         entry.flag = EXACT;
 
-    entry.bestMove = bestMove; // optional but useful
-        return value;
+
+    if (entry.key != hash || depth >= entry.depth) {
+        entry.key = hash;
+        entry.depth = depth;
+        entry.score = storeScore;
+        
+        if (value <= alphaOriginal)
+            entry.flag = UPPERBOUND;
+        else if (value >= betaOriginal)
+            entry.flag = LOWERBOUND;
+        else
+            entry.flag = EXACT;
+
+        entry.bestMove = bestMove;
     }
 
+    return value;
+}
 
 
-Move findBestMove(Board& board, Color side, int depth, std::vector<Move>& moves, int time) {
+
+Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::time_point start_time) {
    
-    memset(killerMoves, 0, sizeof(killerMoves));
+    for (int p = 0; p < MAX_PLY; p++) {
+        for (int k = 0; k < 2; k++) {
+            killerMoves[p][k] = {-1, -1, -1, -1, NONE, NONE};
+        }
+    }
     memset(history, 0, sizeof(history));
 
     nodes = 0;
+
+    Color side = board.sideToMove;
     
-    
+    Move* moves = moveStack[0];
+    int moveCount = generatePseudoLegalMoves(board, board.sideToMove, moves);
+    std::cerr << "Pseudolegal moves: " << moveCount << std::endl;
    
 
     Move bestMove;
-    bestMove.from = -1;
-    bestMove.to = -1;
-    int bestScore = (side == WHITE) ? -10000000 : 10000000;
+    Move currentBestMove;
+ 
+    int bestScore = -10000000;
 
     
 
-    std::vector<int> scores(moves.size());
-    for (int i = 0; i < moves.size(); i++)
-        scores[i] = scoreMove(board, moves[i], side, 1);
 
-    // selection sort or partial sort
-    for (int i = 0; i < moves.size(); i++) {
-        int bestIndex = i;
-        for (int j = i+1; j < moves.size(); j++)
-            if (scores[j] > scores[bestIndex])
-                bestIndex = j;
-        std::swap(moves[i], moves[bestIndex]);
-        std::swap(scores[i], scores[bestIndex]);
-    }
 
     bool found = false;
 
     int alpha = -10000000;
     int beta = 10000000;
+    
+    
+    
+    u64 hash = board.hash;
+    int index = hash & (TT_SIZE - 1);
+    TTEntry& entry = tt[index];
+   
+    Move ttMove;
+    ttMove.from = -1;
 
-    for (auto& m : moves) {
-
-
+    if (entry.key == hash &&
+            entry.bestMove.from != -1 &&
+            entry.bestMove.from != entry.bestMove.to)
         
+        ttMove = entry.bestMove;
 
 
-        Undo u = makeMove(m, board, side);
+    MovePicker mp(board, ttMove, depth);
 
+    while (true) {
+        Move m = mp.nextMove();
+        Move copy = m;
+        if (m.from == -1) break;
 
-        
+        std::cerr << numToPos(m.from) << numToPos(m.to) << std::endl;
+        Color expectedSide = side;
+        Undo u = makeMove(copy, board);
+        if (isKingInCheck(expectedSide, board)) {
+            undoMove(copy, board, u);
+            continue;
+        }
 
         int score = -alphaBeta(board, depth - 1, -beta, -alpha,
-                              (side == WHITE) ? BLACK : WHITE, 1);
-        
+                              (side == WHITE) ? BLACK : WHITE, 1, time, start_time, true);
 
-        std::string log = numToPos(m.from) + " -> " + numToPos(m.to) + " " + std::to_string(score);
-        logToFile(log);
-        std::cerr << log << std::endl;
-        undoMove(m, board, side, u);
+
+        undoMove(copy, board, u);
 
         alpha = std::max(alpha, score);
+        
+        assert(board.sideToMove == expectedSide);
         
 
         if (!found || score > bestScore) {
@@ -278,58 +396,75 @@ Move findBestMove(Board& board, Color side, int depth, std::vector<Move>& moves,
             bestMove = m;
             found = true;
         }
+        if (stopSearch) {
+            break;
+        }
     }
 
-    if (!found) {
-        // No legal move found
-        std::cerr << "findBestMove: no legal moves found (returning invalid move)\n";
-        logToFile("findBestMove: no legal moves found (returning invalid move)");
 
+    if (!found) {
+        
         Move none;
         none.from = -1;
         none.to   = -1;
         return none;
     }
 
-    logToFile(std::to_string(nodes));
     return bestMove;
 }
 
-Move search(Board& board, Color side, GoParams go) {
-    std::vector<Move> moves;
+Move search(Board& board, GoParams go) {
+    stopSearch = false;
 
-    logToFile("generated Moves search"); 
-    generateLegalMoves(board, side, moves);
 
     Move bestMove;
-
-
-    int timeLeft = (side == WHITE) ? go.wtime : go.btime;
-    int increment = (side == WHITE) ? go.winc : go.binc;
+    int timeToMove;
+    
+    int timeLeft = (board.sideToMove == WHITE) ? go.wtime : go.btime;
+    int increment = (board.sideToMove == WHITE) ? go.winc : go.binc;
     // Use 2.25% of the time + half of the increment
-    int timeToMove = timeLeft / 40 + (increment/2);
+    std::cerr << "Movetime: " << go.movetime;
+    if (go.wtime != -1 || go.btime != -1) {
+        timeToMove = timeLeft / 40 + (increment/2);
 
-    // If the increment puts us above the total time left
-    // use the timeleft - 0.5 seconds
-    if(timeToMove >= timeLeft) {
-        timeToMove = timeLeft -500;
+        // If the increment puts us above the total time left
+        // use the timeleft - 0.5 seconds
+        if(timeToMove >= timeLeft) {
+            timeToMove = timeLeft -500;
+        }
+        // If 0.5 seconds puts us below 0
+        // use 0.1 seconds to atleast get some move.
+        if(timeToMove < 0) {
+            timeToMove = 100;
+        }
     }
-    // If 0.5 seconds puts us below 0
-    // use 0.1 seconds to atleast get some move.
-    if(timeForThisMove < 0) {
-        timeToMove = 100;
+    else if (go.infinite == true || go.movetime == -1) {
+        timeToMove = 10000000;
+    } else {
+        timeToMove = go.movetime;
+    }
+    
+
+
+    std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+    int maxDepth = 15;
+    if (go.depth != -1) {
+        std::cerr << "depth" << go.depth;
+        maxDepth = go.depth;
+    } 
+    
+    for (int d = 1; d <= maxDepth; d++) {
+        auto start_time = std::chrono::steady_clock::now();
+        Move move = findBestMove(board, d, timeToMove, start_time);
+        std::cerr << "Depth " << d << " searched" << std::endl;
+        printBoardAsLetters(board, false);
+        if (stopSearch) break;
+        
+        bestMove = move;
     }
 
-    int maxDepth = 8;
-    for (int d = 1; d < maxDepth; d++) {
-        auto start = std::chrono::high_resolution_clock::now();
 
-        bestMove = findBestMove(board, side, d, moves, timeToMove);
-
-
-    }
-
-    makeMove(bestMove, board, side);
+    makeMove(bestMove, board);
 
     return bestMove;
 }

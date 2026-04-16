@@ -13,19 +13,32 @@
 using u64 = uint64_t;
 
 
+bool isMoveLegal(Board& board, Move m, Color side) {
+    Undo u = makeMove(m, board);
+    bool legal = false;
+        
 
-void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
+    if (!(isKingInCheck(side, board))) {
+        legal = true;
+    }
+        
+
+        
+
+    undoMove(m, board, u);
+    return legal;
+}
+
+int generateLegalMoves (Board& board, Color side, Move* moves) {
    
-    moves.clear();
     
-    generatePseudoLegalMoves(board, side, moves);
+    int count = generatePseudoLegalMoves(board, side, moves);
 
     
-
 
     int legalCount = 0;
 
-    for (int i = 0; i < moves.size(); i++) {
+    for (int i = 0; i < count; i++) {
 
     
         if (getPieceType(board, moves[i].from) == NONE) {
@@ -33,18 +46,16 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
             exit(1);
         }
         Board before = board;
-        Undo u = makeMove(moves[i], board, side);
         
         
 
-        if (!(isKingInCheck(side, board))) {
+        if (isMoveLegal(board, moves[i], side)) {
             moves[legalCount++] = moves[i];  // keep move
         }
         
 
         
 
-        undoMove(moves[i], board, side, u);
         if (memcmp(&before, &board, sizeof(Board)) != 0) {
             
             sameBoard(before, board);
@@ -54,72 +65,7 @@ void generateLegalMoves (Board& board, Color side, std::vector<Move>& moves) {
 
     }
 
-    moves.resize(legalCount);
-    
-    
-    
-
-
-    // // --- Castling ---
-    // u64 allPieces = board.all_white | board.all_black;
-    // if (side == WHITE)
-    // {
-    //     // White kingside (E1 -> G1, rook H1 -> F1)
-    //     if (canCastleKingside_white &&
-    //         !(allPieces & ((1ULL << 5) | (1ULL << 6))) && // F1, G1 empty
-    //         !isKingInCheck(WHITE, board))
-    //     {
-    //         moves.push_back(mkMove(4, 6, 7, 5, 0ULL, NONE)); // from2=7 (rook), to2=5 (rook move)
-    //     }
-    //     // White queenside (E1 -> C1, rook A1 -> D1)
-    //     if (canCastleQueenside_white &&
-    //         !(allPieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // B1, C1, D1 empty
-    //         !isKingInCheck(WHITE, board))
-    //     {
-    //         Board temp = board;
-    //         movePiece(temp.king_white, 4, 3, WHITE, temp);
-    //         if (!isKingInCheck(WHITE, temp))
-    //         {
-    //             movePiece(temp.king_white, 3, 2, WHITE, temp);
-    //             if (!isKingInCheck(WHITE, temp))
-    //                 moves.push_back(mkMove(4, 2, 0, 3, 0)); // from2=0 (rook), to2=3 (rook move)
-    //                                                         // std::cout << "move: " << fromSq << " → " << "K" << "\n";
-    //         }
-    //     }
-    // }
-    // else
-    // {
-    //     // Black kingside (E8 -> G8, rook H8 -> F8)
-    //     if (canCastleKingside_black &&
-    //         !(allPieces & ((1ULL << 61) | (1ULL << 62))) && // F8, G8 empty
-    //         !isKingInCheck(BLACK, board))
-    //     {
-    //         Board temp = board;
-    //         movePiece(temp.king_black, 60, 61, BLACK, temp);
-    //         if (!isKingInCheck(BLACK, temp))
-    //         {
-    //             movePiece(temp.king_black, 61, 62, BLACK, temp);
-    //             if (!isKingInCheck(BLACK, temp))
-    //                 moves.push_back(mkMove(60, 62, 63, 61, 0));
-    //             // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-    //         }
-    //     }
-    //     // Black queenside (E8 -> C8, rook A8 -> D8)
-    //     if (canCastleQueenside_black &&
-    //         !(allPieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
-    //         !isKingInCheck(BLACK, board))
-    //     {
-    //         Board temp = board;
-    //         movePiece(temp.king_black, 60, 59, BLACK, temp);
-    //         if (!isKingInCheck(BLACK, temp))
-    //         {
-    //             movePiece(temp.king_black, 59, 58, BLACK, temp);
-    //             if (!isKingInCheck(BLACK, temp))
-    //                 moves.push_back(mkMove(60, 58, 56, 59, 0));
-    //             // std::cout << "move: " << fromSq << " → "  << "K" << "\n";
-    //         }
-    //     }
-    // }
+    return legalCount;
 } 
 
 bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
@@ -131,7 +77,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     //Pawns
     if (attackingSide == WHITE) {
         
-        u64 pawns = board.pawns_white;
+        u64 pawns = board.pieces[WP];
         u64 pawnAttacks = ((pawns << 7) & ~FILE_H) | ((pawns << 9) & ~FILE_A);
         if(pawnAttacks & attackedSquareBB) {
             return true;
@@ -139,7 +85,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     } 
     else if (attackingSide == BLACK) {
        
-        u64 pawns = board.pawns_black;
+        u64 pawns = board.pieces[BP];
         u64 pawnAttacks = ((pawns >> 7) & ~FILE_A) | ((pawns >> 9) & ~FILE_H);
         if(pawnAttacks & attackedSquareBB) {
             return true;
@@ -147,7 +93,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     }
 
     //Knights
-    u64 knights = (attackingSide == WHITE) ? board.knights_white : board.knights_black;
+    u64 knights = (attackingSide == WHITE) ? board.pieces[WN] : board.pieces[BN];
     
     
     while (knights) {
@@ -161,7 +107,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     }
 
     //King
-    u64 king = (attackingSide == WHITE) ? board.king_white : board.king_black;
+    u64 king = (attackingSide == WHITE) ? board.pieces[WK] : board.pieces[BK];
     
     int fromSq = lsb(king);
 
@@ -172,7 +118,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
 
 
     //Bishops
-    u64 bishops = (attackingSide == WHITE) ? board.bishops_white : board.bishops_black;
+    u64 bishops = (attackingSide == WHITE) ? board.pieces[WB] : board.pieces[BB];
     
     while (bishops) {
         int fromSq = lsb(bishops);
@@ -186,7 +132,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     }
 
     //Rooks
-    u64 rooks = (attackingSide == WHITE) ? board.rooks_white : board.rooks_black;
+    u64 rooks = (attackingSide == WHITE) ? board.pieces[WR] : board.pieces[BR];
     
     while (rooks) {
         int fromSq = lsb(rooks);
@@ -200,7 +146,7 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     }
 
     //Queens
-    u64 queens = (attackingSide == WHITE) ? board.queens_white : board.queens_black;
+    u64 queens = (attackingSide == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
     
     while (queens) {
         int fromSq = lsb(queens);
@@ -219,11 +165,12 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
 
 bool isKingInCheck(Color side, const Board &board) {
     u64 occ = board.all_white | board.all_black;
-    u64 kingBB = (side == WHITE) ? board.king_white : board.king_black;
+    u64 kingBB = (side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     
     
     if (!kingBB) {
         std::cerr << "isKingInCheck: No King " << std::endl;
+        printBoardAsLetters(board, false);
         return false;
     }
 
@@ -237,19 +184,19 @@ bool isKingInCheck(Color side, const Board &board) {
     return false;
 }
 
-void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
+int generateCaptures(Board& board, Color side, Move* moves) {
     u64 oppSideBB = (side == WHITE) ? board.all_black : board.all_white;
     u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+    int count = 0;
 
-    moves.clear();
 
     //PAWNS
-    u64 pawns = (side == WHITE) ? board.pawns_white : board.pawns_black;
-
+    u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
+    u64 originalPawns = pawns;
 
     while (pawns) {
         int fromSq = lsb(pawns);
-        u64 originalPawns = pawns;
+        
         pawns &= pawns - 1;
         int toSq;
         u64 fromSqBB = 1ULL << fromSq;
@@ -260,13 +207,13 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
                 if (toSq >= 0 && toSq < 64) {
                     if (oppSideBB & (1ULL << toSq)) {
                         if (fromSqBB & RANK_7) {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
 
                         } else {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
                         }
                     }
                 }
@@ -278,13 +225,13 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
                 if (toSq >= 0 && toSq < 64) {
                     if (oppSideBB & (1ULL << toSq)) {
                         if (fromSqBB & RANK_7) {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
 
                         } else {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
                         }
                     }
                 }
@@ -296,13 +243,13 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
                 if (toSq >= 0 && toSq < 64) {
                     if (oppSideBB & (1ULL << toSq)) {
                         if (fromSqBB & RANK_2) {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
 
                         } else {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
                         }
                     }
                 }
@@ -314,13 +261,13 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
                 if (toSq >= 0 && toSq < 64) {
                     if (oppSideBB & (1ULL << toSq)) {
                         if (fromSqBB & RANK_2) {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), KNIGHT));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), BISHOP));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), ROOK));
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), QUEEN));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
 
                         } else {
-                            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
                         }
                     }
                 }
@@ -336,26 +283,26 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
                 if (epSq % 8 != 0) {  // left EP
                     fromEp = epSq - 9;
                     if ((fromEp >= 0 && fromEp < 64) && (originalPawns & (1ULL << fromEp))) {
-                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                        moves[count++] = mkMove(fromEp, epSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
                     }
                 }
                 if (epSq % 8 != 7) {  // right EP
                     fromEp = epSq - 7;
                     if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
-                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                        moves[count++] = mkMove(fromEp, epSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
                     }
                 }
             } else {  // black
                 if (epSq % 8 != 0) {  // left EP
                     fromEp = epSq + 7;
                     if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) { 
-                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                        moves[count++] = mkMove(fromEp, epSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
                     }
                 }
                 if (epSq % 8 != 7) {  // right EP
                     fromEp = epSq + 9;
                     if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
-                        moves.push_back(mkMove(fromEp, epSq, -1, -1, PAWN, NONE));
+                        moves[count++] = mkMove(fromEp, epSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
                     }
                 }
             }
@@ -365,7 +312,7 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
     }
 
     //KNIGHTS
-    u64 knights = (side == WHITE) ? board.knights_white : board.knights_black;
+    u64 knights = (side == WHITE) ? board.pieces[WN] : board.pieces[BN];
 
     while (knights)
     {
@@ -379,13 +326,13 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
         {
             int toSq = lsb(captures);
             captures &= captures - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WN : BN, getPieceType(board, toSq), NONE, CAPTURE);
         }
     }
 
     //BISHOPS
     u64 occ = oppSideBB | ownPieces;
-    u64 bishops = (side == WHITE) ? board.bishops_white : board.bishops_black;
+    u64 bishops = (side == WHITE) ? board.pieces[WB] : board.pieces[BB];
 
     while (bishops)
     {
@@ -400,12 +347,12 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
         {
             int toSq = lsb(captures);
             captures &= captures - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WB : BB, getPieceType(board, toSq), NONE, CAPTURE);
         }
     }
 
     //ROOKS
-    u64 rooks = (side == WHITE) ? board.rooks_white : board.rooks_black;
+    u64 rooks = (side == WHITE) ? board.pieces[WR] : board.pieces[BR];
 
     while (rooks)
     {
@@ -420,12 +367,12 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
         {
             int toSq = lsb(captures);
             captures &= captures - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WR : BR, getPieceType(board, toSq), NONE, CAPTURE);
         }
     }
 
     //QUEENS
-    u64 queens = (side == WHITE) ? board.queens_white : board.queens_black;
+    u64 queens = (side == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
 
     while (queens)
     {
@@ -440,35 +387,26 @@ void generateLegalCaptures(Board& board, Color side, std::vector<Move>& moves) {
         {
             int toSq = lsb(captures);
             captures &= captures - 1;
-            moves.push_back(mkMove(fromSq, toSq, -1, -1, getPieceType(board, toSq), NONE));
+            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WQ : BQ, getPieceType(board, toSq), NONE, CAPTURE);
         }
     }
 
+    return count;
+}
 
 
-    //LEGALITY
+int generateQuietMoves(Board& board, Move* moves) {
+    int moveCount = generateLegalMoves(board, board.sideToMove, moves);
+    int quietCount = 0;
 
+    for (int i = 0; i < moveCount; i++) {
+        Move m = moves[i];
 
-    int legalCount = 0;
-
-    for (int i = 0; i < moves.size(); i++) {
-
-    
-        Undo u = makeMove(moves[i], board, side);
-        
-        
-
-        if (!(isKingInCheck(side, board))) {
-            moves[legalCount++] = moves[i];  // keep move
-        }
-        
+        if (m.flags & QUIET) 
+            moves[quietCount++] = moves[i];
 
         
-
-        undoMove(moves[i], board, side, u);
-        
-
     }
 
-    moves.resize(legalCount);
+    return quietCount;
 }

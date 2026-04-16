@@ -14,11 +14,9 @@
 #include "constants.h"
 
 
+void seedRNG(uint64_t seed = 5489ULL);
 
-inline u64 rand64() {
-    static std::mt19937_64 rng(123456); // fixed seed (or use time)
-    return rng();
-}
+
 
 void benchmarkSearch(Board board, int depth, Color side);
 
@@ -34,47 +32,19 @@ inline void logToFile(const std::string message) {
     }
 }
 
-void checkBoard(const Board& board);
 
 std::string printBoardAsLetters(const Board& board, bool forLog);
 
 inline const u64* getTypeBB(int pos,const Board& board) {
     u64 mask = 1ULL << pos;
-    if (mask & board.pawns_white)  return &board.pawns_white;
-    if (mask & board.rooks_white)  return &board.rooks_white;
-    if (mask & board.knights_white) return &board.knights_white;
-    if (mask & board.bishops_white) return &board.bishops_white;
-    if (mask & board.queens_white)  return &board.queens_white;
-    if (mask & board.king_white)   return &board.king_white;
-
-    if (mask & board.pawns_black)  return &board.pawns_black;
-    if (mask & board.rooks_black)  return &board.rooks_black;
-    if (mask & board.knights_black) return &board.knights_black;
-    if (mask & board.bishops_black) return &board.bishops_black;
-    if (mask & board.queens_black)  return &board.queens_black;
-    if (mask & board.king_black)   return &board.king_black;
-
+    for (int p = 0; p < 12; p++) {
+        if (mask & board.pieces[p]) {
+            return &board.pieces[p];
+        }
+    }
     return nullptr;
 }
 
-inline u64* getTypeBB(int pos, Board& board) {
-    u64 mask = 1ULL << pos;
-    if (mask & board.pawns_white)  return &board.pawns_white;
-    if (mask & board.rooks_white)  return &board.rooks_white;
-    if (mask & board.knights_white) return &board.knights_white;
-    if (mask & board.bishops_white) return &board.bishops_white;
-    if (mask & board.queens_white)  return &board.queens_white;
-    if (mask & board.king_white)   return &board.king_white;
-
-    if (mask & board.pawns_black)  return &board.pawns_black;
-    if (mask & board.rooks_black)  return &board.rooks_black;
-    if (mask & board.knights_black) return &board.knights_black;
-    if (mask & board.bishops_black) return &board.bishops_black;
-    if (mask & board.queens_black)  return &board.queens_black;
-    if (mask & board.king_black)   return &board.king_black;
-
-    return nullptr;
-}
 
 
 
@@ -124,15 +94,9 @@ Board fenUnloader(const std::string& fen);
 
 
 
-std::string randomMove(std::vector<Move>& moves, Color side, Board& board);
-
-
-std::string evalMove(std::vector<Move>& moves, Color side, Board& board);
-
-
 int pieceValueAtSq(const Board& board, int sq);
 
-
+bool has_non_pawn_material(Board& board, Color side);
 
 Move parseUCIMove(const std::string& moveStr, Board& board);
 
@@ -147,63 +111,48 @@ Color getColor(const Board& board, int sq);
 inline Piece getPieceType(const Board& board, int sq) {
     if (sq < 0 || sq > 63) return NONE;
     u64 mask = 1ULL << sq;
-    if (mask & board.queens_white)  return QUEEN;
-    if (mask & board.rooks_white)   return ROOK;
-    if (mask & board.bishops_white) return BISHOP;
-    if (mask & board.knights_white) return KNIGHT;
-    if (mask & board.pawns_white)   return PAWN;
-    if (mask & board.king_white)    return KING;
-    if (mask & board.queens_black)  return QUEEN;
-    if (mask & board.rooks_black)   return ROOK;
-    if (mask & board.bishops_black) return BISHOP;
-    if (mask & board.knights_black) return KNIGHT;
-    if (mask & board.pawns_black)   return PAWN;
-    if (mask & board.king_black)    return KING;
+    if (mask & board.pieces[WQ]) return WQ;
+    if (mask & board.pieces[WR]) return WR;
+    if (mask & board.pieces[WB]) return WB;
+    if (mask & board.pieces[WN]) return WN;
+    if (mask & board.pieces[WP]) return WP;
+    if (mask & board.pieces[WK]) return WK;
+    if (mask & board.pieces[BQ]) return BQ;
+    if (mask & board.pieces[BR]) return BR;
+    if (mask & board.pieces[BB]) return BB;
+    if (mask & board.pieces[BN]) return BN;
+    if (mask & board.pieces[BP]) return BP;
+    if (mask & board.pieces[BK]) return BK;
     return NONE;
 
      
 }
 
-inline u64* getBitboard(Board& board, Piece p, Color side) {
-    if (side == WHITE) {
-        switch (p) {
-            case PAWN: return &board.pawns_white;
-            case KNIGHT: return &board.knights_white;
-            case BISHOP: return &board.bishops_white;
-            case ROOK: return &board.rooks_white;
-            case QUEEN: return &board.queens_white;
-            case KING: return &board.king_white;
-            default: return nullptr;
-        }
-    } else {
-        switch (p) {
-            case PAWN: return &board.pawns_black;
-            case KNIGHT: return &board.knights_black;
-            case BISHOP: return &board.bishops_black;
-            case ROOK: return &board.rooks_black;
-            case QUEEN: return &board.queens_black;
-            case KING: return &board.king_black;
-            default: return nullptr;
-        }
-    }
-}
 
-u64 perft(Board& board, int depth, Color side, u64& captures, u64& promotions, 
+u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, 
     u64& castles, u64& enPassants, u64& checks, u64& checkmates);
 
 inline int pieceValue(Piece p) {
     switch (p) {
-        case PAWN: return 100;
-        case KNIGHT: return 300;
-        case BISHOP: return 300;
-        case ROOK: return 500;
-        case QUEEN: return 900;
-        case KING: return 10000;
+        case WP: return PAWN_VALUE;
+        case WN: return KNIGHT_VALUE;
+        case WB: return BISHOP_VALUE;
+        case WR: return ROOK_VALUE;
+        case WQ: return QUEEN_VALUE;
+        case WK: return KING_VALUE;
+        case BP: return PAWN_VALUE;
+        case BN: return KNIGHT_VALUE;
+        case BB: return BISHOP_VALUE;
+        case BR: return ROOK_VALUE;
+        case BQ: return QUEEN_VALUE;
+        case BK: return KING_VALUE;
         default: return 0;
     }
 }
 
 void initZobrist();
+
+bool canEnPassant(const Board& board, Color side);
 
 u64 computeHash(const Board& board, Color side);
 
@@ -214,4 +163,8 @@ bool hasPawnOnFile(const Board& board, int file, Color side);
 int fileOf(int sq);
 
 u64 attackers(const Board& board, Color side, int sq);
+
+void hashXor(Board& board, u64& hash, u64 key, const std::string& label);
+
+
 

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#include <chrono>
 #include <sstream>
 #include <fstream>
 #include "evaluation.h"
@@ -24,12 +25,37 @@ using u64 = uint64_t;
 int main() {
     initMasks();
     initAttacks();
+
+    seedRNG(0x9e3779b97f4a7c15ULL);
     initZobrist();
+
+    //init pst
+    const int* tables[6] = {
+        PST_PAWN,
+        PST_KNIGHT,
+        PST_BISHOP,
+        PST_ROOK,
+        PST_QUEEN,
+        PST_KING
+    };
+
+    for (int p = 0; p < 6; p++) {
+        for (int sq = 0; sq < 64; sq++) {
+
+            // white pieces
+            pst[p][sq] = tables[p][sq];
+
+            // black pieces (mirrored + negated)
+            pst[p + 6][sq] = -tables[p][sq ^ 56];
+        }
+    }
+
+    Move moveStack[MAX_PLY][MAX_MOVES];
+
     
     Board board{};
     Color side = WHITE;
     std::string input;
-    bool stopSearch;
     
 
     for (int sq = 0; sq < 64; sq++) {
@@ -44,7 +70,7 @@ int main() {
 
     
 
-    
+    std::thread searchThread; 
 
     while (std::getline(std::cin, input)) {
         if (input == "uci") {
@@ -68,53 +94,61 @@ int main() {
            
 
         }
-        else if (input.rfind("go", 0) == 0) {
-            logToFile("GUI: " + input);
-           
-            std::istringstream iss(input);
-            std::string token;
-
-            iss >> token; 
-
-            GoParams go {};
-
-            while (iss >> token) {
-                if (token == "wtime") iss >> go.wtime;
-                else if (token == "btime") iss >> go.btime;
-                else if (token == "winc") iss >> go.winc;
-                else if (token == "binc") iss >> go.binc;
-                else if (token == "movestogo") iss >> go.movestogo;
-                else if (token == "depth") iss >> go.depth;
-                else if (token == "movetime") iss >> go.movetime;
-                else if (token == "infinite") go.infinite = true;
-            }
-
-            stopSearch = false;
-
-            Move best = search(board, sideToMove, go);
+        else if (input.rfind("go", 0) == 0) { 
+            logToFile("GUI: " + input); 
+            stopSearch = false;         
+            std::istringstream iss(input); 
+            std::string token; iss >> token; 
+            GoParams go {}; 
             
-            sideToMove = (sideToMove == WHITE) ? BLACK :  WHITE;
-
-
-
-
+            while (iss >> token) { 
+                if (token == "wtime") 
+                    iss >> go.wtime; 
+                else if (token == "btime") 
+                    iss >> go.btime; 
+                else if (token == "winc") 
+                    iss >> go.winc; 
+                else if (token == "binc") 
+                    iss >> go.binc; 
+                else if (token == "movestogo") 
+                    iss >> go.movestogo; 
+                else if (token == "depth") 
+                    iss >> go.depth; 
+                else if (token == "movetime") 
+                    iss >> go.movetime; 
+                else if (token == "infinite") 
+                go.infinite = true; 
+            } 
+            if ((!go.wtime )|| (!go.btime)) { go.infinite = true; } 
             
-            std::string move = numToPos(best.from) + numToPos(best.to);
-            if (best.promotion != NONE) {
-                std::cout << "bestmove " << move << getPieceLetter(best.promotion) << std::endl;
+            if (searchThread.joinable())
+                searchThread.join();
 
-            } else {
-            std::cout << "bestmove " << move << std::endl;
-
-            }
-            logToFile("engine: bestmove " + move);
+            searchThread = std::thread([&board, go]() {
+                Move best = search(board, go);
+                
+                    std::string move = numToPos(best.from) + numToPos(best.to);
+                    if (best.promotion != NONE)
+                        std::cout << "bestmove " << move << getPieceLetter(best.promotion) << std::endl;
+                    else
+                        std::cout << "bestmove " << move << std::endl;
+                    logToFile("engine: bestmove " + move);
+                
+            });
+       
         } else if (input == "quit") {
             logToFile("GUI: quit");
+            stopSearch = true;          // stop any running search
+            if (searchThread.joinable())
+                searchThread.join();    // wait for it to finish
             break;
-        } else if (input == "stop") {
-            logToFile("GUI: stop");
-            stopSearch = true;
-           
+        }
+        else if (input == "stop") {
+            stopSearch = true;          // signal the search thread to stop
+            
+            logToFile(input);
+            if (searchThread.joinable())
+                searchThread.join();    // wait for it to finish
         } 
         else if (input == "evaluate") {
             logToFile(input);
@@ -136,9 +170,23 @@ int main() {
             u64 checks = 0ULL; 
             u64 checkmates = 0ULL; 
             
-            u64 nodeCount = perft(board, depth, sideToMove, captures, promotions, castles, enPassants, checks, checkmates);
+            auto start = std::chrono::high_resolution_clock::now();
+
+
+            std::chrono::steady_clock::time_point tp = std::chrono::steady_clock::now(); 
+
+
+            u64 nodeCount = perft(board, 0, depth, captures, promotions, castles, enPassants, checks, checkmates);
+            std::cout << "Perft in progress" << std::endl;
+
+            auto end = std::chrono::high_resolution_clock::now();
+
+            double seconds = std::chrono::duration<double>(end - start).count();
+
             std::cout << "==== Perft results ====" << std::endl;
             std::cout << "Nodes: " << nodeCount << std::endl;
+            std::cout << "Seconds: " << seconds << std::endl;
+            std::cout << "NPS: " << nodeCount / seconds << std::endl;
             std::cout << "Captures: " << captures << std::endl;
             std::cout << "E.p.: " << enPassants << std::endl;
             std::cout << "Castles: " << castles << std::endl;
@@ -155,7 +203,7 @@ int main() {
             int depth;
 
             iss >> token >> depth;  
-            benchmarkSearch(board, depth, sideToMove);          
+            benchmarkSearch(board, depth, board.sideToMove);          
         }
         else if (input != "quit") {
             logToFile(input);
@@ -164,18 +212,9 @@ int main() {
 
     
 
-    // for (int t = 0; t < 500; t++) {
-        
-        
-    //     std::string w;
-    //     std::cin >> w;
-    //     if (side == WHITE) {
-    //         side = BLACK;
-    //     } else {
-    //         side = WHITE;
-    //     }
-        
-    // }
+    // join any running search thread before exit
+    if (searchThread.joinable())
+        searchThread.join();
     return 0;
 }
 
