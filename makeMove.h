@@ -75,22 +75,22 @@ inline void undoMove(const Move& m, Board& board, const Undo& u) {
     // === CAPTURE ===
     if (m.flags & CAPTURE) {
 
-        // if (m.flags & ENPASSANT) {
-        //     int capSq = (c == WHITE) ? to - 8 : to + 8;
-        //     u64 capBB = 1ULL << capSq;
+        if (m.flags & ENPASSANT) {
+            int capSq = (c == WHITE) ? to - 8 : to + 8;
+            u64 capBB = 1ULL << capSq;
 
     
 
-        //     board.pieces[m.captured] ^= capBB;
+            board.pieces[m.captured] ^= capBB;
 
-        //     if (c == WHITE)
-        //         board.all_black ^= capBB;
-        //     else
-        //         board.all_white ^= capBB;
+            if (c == WHITE)
+                board.all_black ^= capBB;
+            else
+                board.all_white ^= capBB;
 
-        //     board.all ^= capBB;
-        // }
-        // else {
+            board.all ^= capBB;
+        }
+        else {
             board.pieces[m.captured] ^= toBB;
 
             if (c == WHITE)
@@ -99,7 +99,7 @@ inline void undoMove(const Move& m, Board& board, const Undo& u) {
                 board.all_white ^= toBB;
 
             board.all ^= toBB;
-        //}
+        }
     }
 
     // === CASTLING ===
@@ -173,10 +173,10 @@ inline Undo makeMove(Move m, Board& board) {
     u64& pieceBB = board.pieces[m.piece];
 
     //2. Remove old ep
-    // if (board.enPassantSquare != -1) {
-    //     board.hash ^= zobristEnPassant[board.enPassantSquare % 8];
+    if (board.enPassantSquare != -1) {
+        board.hash ^= zobristEnPassant[board.enPassantSquare % 8];
         
-    // }
+    }
     board.enPassantSquare = -1;
     
     // 3. MOVE PIECE 
@@ -208,22 +208,22 @@ inline Undo makeMove(Move m, Board& board) {
         board.all ^= toBB;
     }
     // === EN PASSANT ===
-    // if (m.flags & ENPASSANT) {
-    //     int capSq = (c == WHITE) ? to - 8 : to + 8;
-    //     u64 capBB = 1ULL << capSq;
+    if (m.flags & ENPASSANT) {
+        int capSq = (c == WHITE) ? to - 8 : to + 8;
+        u64 capBB = 1ULL << capSq;
 
        
 
-    //     board.pieces[m.captured] ^= capBB;
-    //     board.hash ^= zobrist[m.captured][capSq];
+        board.pieces[m.captured] ^= capBB;
+        board.hash ^= zobrist[m.captured][capSq];
 
-    //     if (c == WHITE)
-    //         board.all_black ^= capBB;
-    //     else
-    //         board.all_white ^= capBB;
+        if (c == WHITE)
+            board.all_black ^= capBB;
+        else
+            board.all_white ^= capBB;
 
-    //     board.all ^= capBB;
-    // }
+        board.all ^= capBB;
+    }
     // === PROMOTION ===
     if (m.flags & PROMOTION) {
         // remove pawn
@@ -316,14 +316,14 @@ inline Undo makeMove(Move m, Board& board) {
     }
 
 
-    // //=== NEW EP ===
-    // if (p == WP || p == BP) {
-    //     if (abs(to - from) == 16) {
-    //         board.enPassantSquare = (from + to) / 2;
-    //     }
-    //     }
-    //     if (board.enPassantSquare != -1)
-    //         board.hash ^= zobristEnPassant[board.enPassantSquare % 8];
+    //=== NEW EP ===
+    if (p == WP || p == BP) {
+        if (abs(to - from) == 16) {
+            board.enPassantSquare = (from + to) / 2;
+        }
+        }
+        if (board.enPassantSquare != -1)
+            board.hash ^= zobristEnPassant[board.enPassantSquare % 8];
 
 
 
@@ -383,6 +383,7 @@ inline Undo makeMove(Move m, Board& board) {
         }
     }
     
+    printBoardAsLetters(board, false);
     return u;
 }
 

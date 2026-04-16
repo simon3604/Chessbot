@@ -692,10 +692,10 @@ u64 computeHash(const Board& board, Color side) {
     // Castling rights
     hash ^= zobristCastling[board.castlingRights];
 
-    // if (board.enPassantSquare != -1) {
-    //     int file = board.enPassantSquare % 8;
-    //     hash ^= zobristEnPassant[file];
-    // }
+    if (board.enPassantSquare != -1) {
+        int file = board.enPassantSquare % 8;
+        hash ^= zobristEnPassant[file];
+    }
 
     return hash;
 }
