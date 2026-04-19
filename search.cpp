@@ -51,11 +51,17 @@ int quiescence(Board& board, int alpha, int beta, Color side, int ply) {
 
     for (int i = 0; i < moveCount; i++) {
         
-
-        Undo u = makeMove(moves[i], board);
+        Board before = board;
+        Undo u = makeMove(moves[i], board, "quiescence");
 
         if (isKingInCheck(side, board)) {
             undoMove(moves[i], board, u);
+            if (memcmp(&before, &board, sizeof(Board)) != 0) {
+                
+                sameBoard(before, board);
+                std::cout << " UNDO BROKEN\n";
+                exit(1);
+            }
             continue;
         }
 
@@ -67,6 +73,13 @@ int quiescence(Board& board, int alpha, int beta, Color side, int ply) {
         );
 
         undoMove(moves[i], board, u);
+
+        if (memcmp(&before, &board, sizeof(Board)) != 0) {
+            
+            sameBoard(before, board);
+            std::cout << " UNDO BROKEN\n";
+            exit(1);
+        }
 
         if (score >= beta)
             return beta;
@@ -102,6 +115,8 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
     int index = hash & (TT_SIZE - 1);
     
     TTEntry& entry = tt[index];
+    
+
     if (depth == 0) {
         if (entry.key == hash && entry.depth >= depth) {
             return entry.score; 
@@ -127,42 +142,23 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
         }
     }
 
-    if (entry.key == hash && entry.bestMove.from != -1) {
+   
 
-        Undo u = makeMove(entry.bestMove, board);
-
-        if (!isKingInCheck(side, board)) {  
-            int score = -alphaBeta(board, depth - 1,
-                            -beta, -alpha,
-                            (side == WHITE) ? BLACK : WHITE, ply + 1,
-                            time, start_time, true);
-
-            if (score >= beta) {
-                undoMove(entry.bestMove, board, u);
-                return score;
-            }
-
-            if (score > alpha)
-                alpha = score;
-        }
-
-        undoMove(entry.bestMove, board, u);
-    }
-
+    
     //Null Move Pruning
-    if (depth >= 3 && !isKingInCheck(side, board) && has_non_pawn_material(board, side) && nullAllowed) {
-        Undo u = make_null_move(board);
+    // if (depth >= 3 && !isKingInCheck(side, board) && has_non_pawn_material(board, side) && nullAllowed) {
+    //     Undo u = make_null_move(board);
 
-        int R = 2 + depth / 4;  // reduction
-        GoParams go = {};
-        int score = -alphaBeta(board, depth - 1 - R, -beta, -beta + 1, (side == WHITE) ? BLACK : WHITE, ply + 1, time, start_time, false);
+    //     int R = 2 + depth / 4;  // reduction
+    //     GoParams go = {};
+    //     int score = -alphaBeta(board, depth - 1 - R, -beta, -beta + 1, (side == WHITE) ? BLACK : WHITE, ply + 1, time, start_time, false);
 
-        undo_null_move(board, u);
+    //     undo_null_move(board, u);
 
-        if (score >= beta) {
-            return beta; 
-        }
-    }
+    //     if (score >= beta) {
+    //         return beta; 
+    //     }
+    // }
 
 
     Move* moves = moveStack[ply];
@@ -222,7 +218,8 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
         //   << "\n";
         assert(m.from >= 0 && m.from < 64);
         assert(m.to >= 0 && m.to < 64); 
-        Undo u = makeMove(copy, board);
+        Board before = board;
+        Undo u = makeMove(copy, board, "ab");
 
         int score;
 
@@ -242,6 +239,13 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
                             oppSide, ply + 1, time, start_time, true);
         }
         undoMove(copy, board, u);
+
+        if (memcmp(&before, &board, sizeof(Board)) != 0) {
+            
+            sameBoard(before, board);
+            std::cout << "UNDO BROKEN\n";
+            exit(1);
+        }
 
         assert(board.sideToMove == expectedSide);
 
@@ -354,6 +358,9 @@ Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::
     u64 hash = board.hash;
     int index = hash & (TT_SIZE - 1);
     TTEntry& entry = tt[index];
+    if (entry.key != hash) {
+        entry.bestMove.from = -1;
+    }
    
     Move ttMove;
     ttMove.from = -1;
@@ -363,6 +370,8 @@ Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::
             entry.bestMove.from != entry.bestMove.to)
         
         ttMove = entry.bestMove;
+
+    
 
 
     MovePicker mp(board, ttMove, depth);
@@ -374,9 +383,16 @@ Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::
 
         std::cerr << numToPos(m.from) << numToPos(m.to) << std::endl;
         Color expectedSide = side;
-        Undo u = makeMove(copy, board);
+        Board before = board;
+        Undo u = makeMove(copy, board, "findbest");
         if (isKingInCheck(expectedSide, board)) {
             undoMove(copy, board, u);
+            if (memcmp(&before, &board, sizeof(Board)) != 0) {
+                
+                sameBoard(before, board);
+                std::cout << "UNDO BROKEN\n";
+                exit(1);
+            }
             continue;
         }
 
@@ -385,6 +401,12 @@ Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::
 
 
         undoMove(copy, board, u);
+        if (memcmp(&before, &board, sizeof(Board)) != 0) {
+            
+            sameBoard(before, board);
+            std::cout << "UNDO BROKEN\n";
+            exit(1);
+        }
 
         alpha = std::max(alpha, score);
         
@@ -464,7 +486,7 @@ Move search(Board& board, GoParams go) {
     }
 
 
-    makeMove(bestMove, board);
+    makeMove(bestMove, board, "search");
 
     return bestMove;
 }

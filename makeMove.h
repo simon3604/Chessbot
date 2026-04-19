@@ -119,13 +119,30 @@ inline void undoMove(const Move& m, Board& board, const Undo& u) {
 
     // 3. restore hash 
     board.hash = u.hash;
+
+    u64 recomputed =
+    board.pieces[WP] | board.pieces[WN] | board.pieces[WB] |
+    board.pieces[WR] | board.pieces[WQ] | board.pieces[WK] |
+    board.pieces[BP] | board.pieces[BN] | board.pieces[BB] |
+    board.pieces[BR] | board.pieces[BQ] | board.pieces[BK];
+
+    if (recomputed != board.all) {
+        std::cout << "board.all BROKEN\n";
+        exit(1);
+    }
 }
 
-inline Undo makeMove(Move m, Board& board) {
+inline Undo makeMove(Move m, Board& board, std::string calledFrom) {
     Undo u;
 
    
+    Piece target = getPieceType(board, m.to);
 
+    if (target != NONE && m.captured == NONE) {
+        std::cout << "❌ ILLEGAL NON-CAPTURE ON OCCUPIED SQUARE\n";
+        std::cout << "Move: " << numToPos(m.from) << numToPos(m.to) << "\n";
+        std::cout << "Called from: " << calledFrom << std::endl;
+    }
     
 
     //1. Save state
@@ -152,6 +169,8 @@ inline Undo makeMove(Move m, Board& board) {
      Piece real = getPieceType(board, from);
     if (real == NONE) {
         std::cout << "ILLEGAL MOVE (empty square)\n";
+        printBoardAsLetters(board, false);
+        printMove(m);
         exit(1);
     }
 
@@ -169,6 +188,8 @@ inline Undo makeMove(Move m, Board& board) {
         print_bitboard(1ULL << m.from);
         exit(1);
     }
+
+    
 
     u64& pieceBB = board.pieces[m.piece];
 
@@ -345,15 +366,32 @@ inline Undo makeMove(Move m, Board& board) {
 
     board.eval += score;
 
-
+    
 
     if (board.hash != full) {
         std::cout << "HASH MISMATCH\n";
+        printBoardAsLetters(board, false);
         std::cout << "Incremental: " << board.hash << "\n";
         std::cout << "Full:        " << full << "\n";
         std::cout << "EP: " << board.enPassantSquare << "\n";
         std::cout << "Castling: " << board.castlingRights << "\n";
-        std::cout << "Side: " << board.sideToMove << "\n";     
+        std::cout << "Side: " << board.sideToMove << "\n"; 
+        printMove(m); 
+        print_bitboard(board.pieces[WP]);
+        print_bitboard(board.pieces[WN]);
+        print_bitboard(board.pieces[WB]);
+        print_bitboard(board.pieces[WR]);
+        print_bitboard(board.pieces[WQ]);
+        print_bitboard(board.pieces[WK]);
+        print_bitboard(board.pieces[BP]);
+        print_bitboard(board.pieces[BN]);  
+        print_bitboard(board.pieces[BB]);
+        print_bitboard(board.pieces[BR]);
+        print_bitboard(board.pieces[BQ]);
+        print_bitboard(board.pieces[BK]);
+        print_bitboard(board.all_white);
+        print_bitboard(board.all_black);
+        print_bitboard(board.all);
         exit(1);
     } 
     
@@ -382,8 +420,18 @@ inline Undo makeMove(Move m, Board& board) {
             exit(1);
         }
     }
+    u64 recomputed =
+        board.pieces[WP] | board.pieces[WN] | board.pieces[WB] |
+        board.pieces[WR] | board.pieces[WQ] | board.pieces[WK] |
+        board.pieces[BP] | board.pieces[BN] | board.pieces[BB] |
+        board.pieces[BR] | board.pieces[BQ] | board.pieces[BK];
+
+    if (recomputed != board.all) {
+        std::cout << "board.all BROKEN\n";
+        exit(1);
+    }
     
-    printBoardAsLetters(board, false);
+    // printBoardAsLetters(board, false);
     return u;
 }
 

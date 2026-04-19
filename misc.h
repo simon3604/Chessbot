@@ -16,8 +16,8 @@
 
 void seedRNG(uint64_t seed = 5489ULL);
 
-
-
+std::string numToPiece(int num);
+void printMove(Move m);
 void benchmarkSearch(Board board, int depth, Color side);
 
 void print_bitboard(u64 bb);

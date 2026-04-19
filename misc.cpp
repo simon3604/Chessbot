@@ -163,6 +163,8 @@ Board fenUnloader(const std::string& fen) {
     board.all_white = 0;
     board.all_black = 0;
 
+    board.all = 0;
+
     std::istringstream ss(fen);
 
     std::string placement, stm, castling, ep;
@@ -240,6 +242,7 @@ Board fenUnloader(const std::string& fen) {
         board.sideToMove = BLACK;
     }
     
+    board.all = board.all_white | board.all_black;
     
     board.castlingRights = 0;
 
@@ -453,7 +456,7 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
         std::string moveStr;
         while (iss >> moveStr) {
             Move move = parseUCIMove(moveStr, board);
-            makeMove(move, board);
+            makeMove(move, board, "fen-unloader");
         
         }
     }
@@ -578,7 +581,7 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
 
     for (int i = 0; i < count; i++) {
         Move m = moves[i];
-        Undo u = makeMove(m, board);
+        Undo u = makeMove(m, board, "perft");
 
         if (depth == 1) {
             if (m.captured != NONE || (m.flags & ENPASSANT)) captures++;
@@ -634,6 +637,90 @@ void initZobrist() {
     // en passant
     for (int i = 0; i < 8; i++)
         zobristEnPassant[i] = dist(rng);
+}
+std::string numToPiece(int num) {
+    if (num > 12) {
+        return "NUM > 12";
+    }
+    switch (num)
+    {
+    case 0:
+        return "WP";
+        break;
+
+    case 1:
+        return "WN";
+        break;
+    
+    case 2:
+        return "WB";
+        break;
+    
+    case 3:
+        return "WR";
+        break;
+
+    case 4:
+        return "WQ";
+        break;
+
+    case 5:
+        return "WK";
+        break;
+
+    case 6:
+        return "BP";
+        break;
+
+    case 7:
+        return "BN";
+        break;
+
+    case 8:
+        return "BB";
+        break;
+
+    case 9:
+        return "BR";
+        break;
+
+    case 10:
+        return "BQ";
+        break;
+
+    case 11:
+        return "BK";
+        break;
+    
+
+    case 12:
+        return "NONE";
+        break;
+    }
+    return "BAD NUM";
+    
+}
+
+void printMove(Move m) {
+    std::cout << numToPos(m.from) << numToPos(m.to) << std::endl;
+    std::cout << "Piece = " << numToPiece(m.piece) << std::endl;
+    std::cout << "Captured = " << numToPiece(m.captured) << std::endl;
+    std::cout << "Promotion = " << numToPiece(m.promotion) << std::endl;
+    if (m.flags == QUIET) {
+        std::cout << "Flag = QUIET" << std::endl;
+    }
+    if (m.flags & CAPTURE) {
+        std::cout << "Flag = CAPTURE" << std::endl;
+    }
+    if (m.flags & PROMOTION) {
+        std::cout << "Flag = PROMOTION" << std::endl;
+    }
+    if (m.flags & CASTLING) {
+        std::cout << "Flag = CASTLING" << std::endl;
+    }
+    if (m.flags & ENPASSANT) {
+        std::cout << "Flag = ENPASSANT" << std::endl;
+    } 
 }
 
 

@@ -271,8 +271,10 @@ struct Move {
                to == other.to &&
                from2 == other.from2 &&
                to2 == other.to2 &&
+               piece == other.piece &&
                captured == other.captured &&
-               promotion == other.promotion;
+               promotion == other.promotion && 
+               flags == other.flags;
     }
 
     bool operator!=(const Move& other) const {

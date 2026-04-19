@@ -13,20 +13,36 @@
 using u64 = uint64_t;
 
 
-bool isMoveLegal(Board& board, Move m, Color side) {
-    Undo u = makeMove(m, board);
-    bool legal = false;
-        
 
-    if (!(isKingInCheck(side, board))) {
-        legal = true;
-    }
-        
+bool isMoveLegal(Board& board, Move m) {
+    Piece piece = getPieceType(board, m.from);
 
-        
+    // 1. Piece must exist and match
+    if (piece == NONE || piece != m.piece)
+        return false;
 
+    // 2. Can't capture own piece
+    Piece target = getPieceType(board, m.to);
+    Color targetColor = (target <= 5) ? WHITE : BLACK;
+    if (target != NONE && targetColor == board.sideToMove)
+        return false;
+
+    // 3. Capture consistency
+    if (m.captured != NONE && target == NONE && !(m.flags & ENPASSANT))
+        return false;
+
+    if (m.captured == NONE && target != NONE)
+        return false;
+
+    if (((m.piece <= 5) && (board.sideToMove == BLACK)) || ((m.piece > 5 )&& (board.sideToMove == WHITE)))
+        return false;
+    
+    // 4. Make move and test check
+    Undo u = makeMove(m, board, "isMoveLegal");
+    bool illegal = isKingInCheck((m.piece <= 5) ? WHITE : BLACK, board); 
     undoMove(m, board, u);
-    return legal;
+
+    return !illegal;
 }
 
 int generateLegalMoves (Board& board, Color side, Move* moves) {
@@ -49,7 +65,7 @@ int generateLegalMoves (Board& board, Color side, Move* moves) {
         
         
 
-        if (isMoveLegal(board, moves[i], side)) {
+        if (isMoveLegal(board, moves[i])) {
             moves[legalCount++] = moves[i];  // keep move
         }
         
@@ -171,7 +187,7 @@ bool isKingInCheck(Color side, const Board &board) {
     if (!kingBB) {
         std::cerr << "isKingInCheck: No King " << std::endl;
         printBoardAsLetters(board, false);
-        return false;
+        exit(1);
     }
 
     int kingSq = lsb(kingBB);

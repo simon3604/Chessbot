@@ -261,10 +261,10 @@ inline u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq
 
 
 
-int generatePawnMoves(const Board& board, Color side, u64 occ, Move* moves)
+int generatePawnMoves(const Board& board, Color side, Move* moves)
 {
     u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
-    u64 empty = ~(board.all_white | board.all_black);
+    u64 empty = ~board.all;
 
     int count = 0;
 
@@ -513,7 +513,7 @@ int generatePawnMoves(const Board& board, Color side, u64 occ, Move* moves)
     return count;
 }
 
-int generateKnightMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+int generateKnightMoves(const Board& board, Color Side, Move* moves) {
 
     u64 knights = (Side == WHITE) ? board.pieces[WN] : board.pieces[BN];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
@@ -550,7 +550,7 @@ int generateKnightMoves(const Board& board, Color Side, u64 occ, Move* moves) {
     return count;
 };
 
-int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+int generateRookMoves(const Board& board, Color Side, Move* moves) {
     u64 rooks = (Side == WHITE) ? board.pieces[WR] : board.pieces[BR];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -563,7 +563,7 @@ int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         int fromSq = lsb(rooks);
         rooks &= rooks - 1;
 
-        u64 attacks = getRookAttackMagics(fromSq, occ);
+        u64 attacks = getRookAttackMagics(fromSq, board.all);
         attacks &= ~ownPieces;
 
         while (attacks)
@@ -587,7 +587,7 @@ int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves) {
     return count;
 };
 
-int generateBishopMoves(const Board &board, Color Side, u64 occ, Move* moves)
+int generateBishopMoves(const Board &board, Color Side, Move* moves)
 {
     u64 bishops = (Side == WHITE) ? board.pieces[WB] : board.pieces[BB];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
@@ -601,7 +601,7 @@ int generateBishopMoves(const Board &board, Color Side, u64 occ, Move* moves)
         int fromSq = lsb(bishops);
         bishops &= bishops - 1;
 
-        u64 attacks = getBishopAttackMagics(fromSq, occ);
+        u64 attacks = getBishopAttackMagics(fromSq, board.all);
         attacks &= ~ownPieces;
 
         while (attacks)
@@ -625,7 +625,7 @@ int generateBishopMoves(const Board &board, Color Side, u64 occ, Move* moves)
     return count;
 }
 
-int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+int generateQueenMoves(const Board& board, Color Side, Move* moves) {
     u64 queens = (Side == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -637,7 +637,7 @@ int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         int fromSq = lsb(queens);
         queens &= queens - 1;
 
-        u64 attacks = getQueenAttackMagics(fromSq, occ);
+        u64 attacks = getQueenAttackMagics(fromSq, board.all);
         attacks &= ~ownPieces;
 
         while (attacks)
@@ -664,7 +664,7 @@ int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves) {
     return count;
 }
 
-int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
+int generateKingMoves(const Board& board, Color Side, Move* moves) {
     u64 king = (Side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -698,7 +698,7 @@ int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         // White King-side (O-O)
         if (Side == WHITE && fromSq == 4 && (board.castlingRights & CWK)) {
             if ((board.pieces[WR] & (1ULL << 7)) &&         // rook exists on h1
-                !(occ & ((1ULL << 5) | (1ULL << 6))) &&     // f1 and g1 empty
+                !(board.all & ((1ULL << 5) | (1ULL << 6))) &&     // f1 and g1 empty
                 !isSquareAttacked(board, WHITE, 4) &&       // e1 not attacked
                 !isSquareAttacked(board, WHITE, 5) &&       // f1 not attacked
                 !isSquareAttacked(board, WHITE, 6))         // g1 not attacked
@@ -710,7 +710,7 @@ int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         // White Queen-side (O-O-O)
         if (Side == WHITE && fromSq == 4 && (board.castlingRights & CWQ)) {
             if ((board.pieces[WR] & (1ULL << 0)) &&         // rook exists on a1
-                !(occ & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // b1,c1,d1 empty
+                !(board.all & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3))) && // b1,c1,d1 empty
                 !isSquareAttacked(board, WHITE, 4) &&
                 !isSquareAttacked(board, WHITE, 3) &&
                 !isSquareAttacked(board, WHITE, 2))
@@ -722,7 +722,7 @@ int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         // Black King-side (O-O)
         if (Side == BLACK && fromSq == 60 && (board.castlingRights & CBK)) {
             if ((board.pieces[BR] & (1ULL << 63)) &&
-                !(occ & ((1ULL << 61) | (1ULL << 62))) &&
+                !(board.all & ((1ULL << 61) | (1ULL << 62))) &&
                 !isSquareAttacked(board, BLACK, 60) &&
                 !isSquareAttacked(board, BLACK, 61) &&
                 !isSquareAttacked(board, BLACK, 62))
@@ -734,7 +734,7 @@ int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
         // Black Queen-side (O-O-O)
         if (Side == BLACK && fromSq == 60 && (board.castlingRights & CBQ)) {
             if ((board.pieces[BR] & (1ULL << 56)) &&
-                !(occ & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
+                !(board.all & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59))) &&
                 !isSquareAttacked(board, BLACK, 60) &&
                 !isSquareAttacked(board, BLACK, 59) &&
                 !isSquareAttacked(board, BLACK, 58))
@@ -753,15 +753,15 @@ int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves) {
 };
 
 int generatePseudoLegalMoves(const Board& board, Color Side, Move* moves) {
-    u64 occ = board.all_white | board.all_black;
+    
     int count = 0;
     
-    count += generatePawnMoves(board, Side, occ, moves + count);
-    count += generateKnightMoves(board, Side, occ, moves + count);
-    count += generateKingMoves(board, Side, occ, moves + count);
-    count += generateRookMoves(board, Side, occ, moves + count);
-    count += generateBishopMoves(board, Side, occ, moves + count);
-    count += generateQueenMoves(board, Side, occ, moves + count);
+    count += generatePawnMoves(board, Side, moves + count);
+    count += generateKnightMoves(board, Side, moves + count);
+    count += generateKingMoves(board, Side, moves + count);
+    count += generateRookMoves(board, Side, moves + count);
+    count += generateBishopMoves(board, Side, moves + count);
+    count += generateQueenMoves(board, Side, moves + count);
 
     if (count > 256) {
         std::cout << "Move overflow: " << count << std::endl;

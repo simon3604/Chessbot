@@ -22,6 +22,7 @@ Undo make_null_move(Board& board) {
     u.enPassantSquare = board.enPassantSquare;
     u.castlingRights = board.castlingRights;
     u.hash = board.hash;
+    u.side = board.sideToMove;
 
     u.nullMove = true;
 
@@ -42,10 +43,9 @@ void undo_null_move(Board& board, Undo u) {
     board.enPassantSquare = u.enPassantSquare;
     board.castlingRights = u.castlingRights;
     board.hash = u.hash;
+    board.sideToMove = u.side;
 
-    u.nullMove = false;
 
-    board.sideToMove = (board.sideToMove == WHITE) ? BLACK : WHITE;
 
     
 }

@@ -10,7 +10,7 @@
 #include "moveGen.h"
 #include "misc.h"
 
-bool isMoveLegal(Board& board, Move m, Color side);
+bool isMoveLegal(Board& board, Move m);
 
 int generateLegalMoves( Board& board, Color side, Move* moves);
 bool isSquareAttacked(const Board& board, Color Side, int attackedSquare);
