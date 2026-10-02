@@ -18,7 +18,7 @@ int msb(u64 bb);
 int popcount(u64 x);
 
 
-Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, u_int8_t flag);
+Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, uint8_t flag);
 u64 setOccupancy(int index, int bits, u64 mask);
 
 

@@ -17,7 +17,7 @@ inline int msb(u64 bb) { return 63 - __builtin_clzll(bb); }
 inline int popcount(u64 x) { return __builtin_popcountll(x); }
 
 
-inline Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, u_int8_t flags)
+inline Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, uint8_t flags)
 {
     Move m;
     m.from = from;

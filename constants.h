@@ -262,7 +262,7 @@ struct Move {
     Piece piece;
     Piece captured = NONE;
     Piece promotion = NONE;
-    u_int8_t flags =  QUIET;
+    uint8_t flags =  QUIET;
 
 
     
