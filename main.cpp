@@ -175,9 +175,9 @@ int main() {
 
             std::chrono::steady_clock::time_point tp = std::chrono::steady_clock::now(); 
 
-
-            u64 nodeCount = perft(board, 0, depth, captures, promotions, castles, enPassants, checks, checkmates);
             std::cout << "Perft in progress" << std::endl;
+            u64 nodeCount = perft(board, 0, depth, captures, promotions, castles, enPassants, checks, checkmates);
+            
 
             auto end = std::chrono::high_resolution_clock::now();
 

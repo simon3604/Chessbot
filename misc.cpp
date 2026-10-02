@@ -603,7 +603,7 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
         total += nodes;
 
         undoMove(m, board, u);
-        if (ply == 1) {
+        if (ply == 0) {
             std::cout << numToPos(m.from) << numToPos(m.to) << ": " << nodes << "\n";
     
         }
