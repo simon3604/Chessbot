@@ -15,7 +15,7 @@ bool isMoveLegal(Board& board, Move m);
 int generateLegalMoves( Board& board, Color side, Move* moves);
 bool isSquareAttacked(const Board& board, Color Side, int attackedSquare);
 
-bool isKingInCheck(Color Side, const Board &board);
+bool isKingInCheck(Color Side, const Board &board, std::string debugInfo);
 
 int generateCaptures(Board& board, Color side, Move* moves);
 

@@ -133,7 +133,7 @@ int kingSafety(const Board& board, Color side) {
     }
 
     // 6. Direct checks (very important)
-    if (isKingInCheck(side, board)) {
+    if (isKingInCheck(side, board, "kingSafety")) {
         score -= 50;
     }
 

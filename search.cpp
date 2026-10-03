@@ -8,6 +8,7 @@
 #include <ctime>
 #include <chrono>
 #include <atomic>
+#include "assert.h"
 #include "moveGen.h"
 #include "evaluation.h"
 #include "search.h"
@@ -54,7 +55,7 @@ int quiescence(Board& board, int alpha, int beta, Color side, int ply) {
         Board before = board;
         Undo u = makeMove(moves[i], board, "quiescence");
 
-        if (isKingInCheck(side, board)) {
+        if (isKingInCheck(side, board, "quiescence")) {
             undoMove(moves[i], board, u);
             if (memcmp(&before, &board, sizeof(Board)) != 0) {
                 
@@ -146,7 +147,7 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
 
     
     //Null Move Pruning
-    // if (depth >= 3 && !isKingInCheck(side, board) && has_non_pawn_material(board, side) && nullAllowed) {
+    // if (depth >= 3 && !isKingInCheck(side, board, "Null Move Pruning") && has_non_pawn_material(board, side) && nullAllowed) {
     //     Undo u = make_null_move(board);
 
     //     int R = 2 + depth / 4;  // reduction
@@ -195,7 +196,7 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
      
         bool isCapture = (m.captured != NONE);
         bool isQuiet = (!isCapture && m.promotion == NONE);
-        bool notCheck = !isKingInCheck(side, board);
+        bool notCheck = !isKingInCheck(side, board, "alphaBeta");
 
         int reduction = 0;
 
@@ -266,6 +267,8 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
                 killerMoves[ply][0] = m;
             }
 
+            printKillers(killerMoves[ply]);
+
             // history heuristic
             history[side][m.from][m.to] += depth * depth;
             history[side][m.from][m.to] = std::min(history[side][m.from][m.to], 1000000);
@@ -278,7 +281,7 @@ int alphaBeta(Board& board, int depth, int alpha, int beta, Color side, int ply,
     }
 
     if (value == -10000000) { // no moves found
-        if (isKingInCheck(side, board))
+        if (isKingInCheck(side, board, "alphaBeta2"))
             return -MATE + ply;
         else
             return 0;
@@ -385,7 +388,7 @@ Move findBestMove(Board& board, int depth, int time, std::chrono::steady_clock::
         Color expectedSide = side;
         Board before = board;
         Undo u = makeMove(copy, board, "findbest");
-        if (isKingInCheck(expectedSide, board)) {
+        if (isKingInCheck(expectedSide, board, "findbestmove")) {
             undoMove(copy, board, u);
             if (memcmp(&before, &board, sizeof(Board)) != 0) {
                 

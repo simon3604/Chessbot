@@ -82,7 +82,7 @@ Move MovePicker::nextMove()
         Color originalSide = board.sideToMove;
         Undo u = makeMove(ttMove, board, "MovePicker, TT");
 
-        if (!isKingInCheck(originalSide, board))
+        if (!isKingInCheck(originalSide, board, "MovePicker, TT"))
         {
           undoMove(ttMove, board, u);
           return ttMove;
@@ -132,13 +132,15 @@ Move MovePicker::nextMove()
           continue;
 
         Color originalSide = board.sideToMove;
+
+        printMove(m);
         Undo u = makeMove(m, board, "MovePicker, Killers");
 
-        if (!isKingInCheck(originalSide, board))
+        if (!isKingInCheck(originalSide, board, "MovePicker, Killers"))
         {
           undoMove(m, board, u);
           return m;
-        }
+        } 
 
         undoMove(m, board, u);
       }

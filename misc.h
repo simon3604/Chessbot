@@ -32,6 +32,10 @@ inline void logToFile(const std::string message) {
     }
 }
 
+void printMove(Move m);
+
+void printKillers(const Move killers[2]);
+
 
 std::string printBoardAsLetters(const Board& board, bool forLog);
 

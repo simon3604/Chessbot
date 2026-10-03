@@ -39,7 +39,7 @@ bool isMoveLegal(Board& board, Move m) {
     
     // 4. Make move and test check
     Undo u = makeMove(m, board, "isMoveLegal");
-    bool illegal = isKingInCheck((m.piece <= 5) ? WHITE : BLACK, board); 
+    bool illegal = isKingInCheck((m.piece <= 5) ? WHITE : BLACK, board, "isMoveLegal"); 
     undoMove(m, board, u);
 
     return !illegal;
@@ -179,13 +179,13 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     return false;
 }
 
-bool isKingInCheck(Color side, const Board &board) {
+bool isKingInCheck(Color side, const Board &board, std::string debugInfo) {
     u64 occ = board.all_white | board.all_black;
     u64 kingBB = (side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     
     
     if (!kingBB) {
-        std::cerr << "isKingInCheck: No King " << std::endl;
+        std::cerr << "isKingInCheck: No King " << debugInfo << std::endl;
         printBoardAsLetters(board, false);
         exit(1);
     }

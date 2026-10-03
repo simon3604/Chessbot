@@ -140,8 +140,8 @@ inline Undo makeMove(Move m, Board& board, std::string calledFrom) {
 
     if (target != NONE && m.captured == NONE) {
         std::cout << "❌ ILLEGAL NON-CAPTURE ON OCCUPIED SQUARE\n";
-        std::cout << "Move: " << numToPos(m.from) << numToPos(m.to) << "\n";
         std::cout << "Called from: " << calledFrom << std::endl;
+        printMove(m);
     }
     
 

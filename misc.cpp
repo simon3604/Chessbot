@@ -588,7 +588,7 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
             if (m.promotion != NONE) promotions++;
             if (m.from2 != -1) castles++;
             if (m.flags & ENPASSANT) enPassants++;
-            bool inCheck = isKingInCheck(opp, board);
+            bool inCheck = isKingInCheck(opp, board, "perft");
             if (inCheck) {
                 checks++;
                 Move* oppMoves = moveStack[ply + 1];
@@ -702,6 +702,7 @@ std::string numToPiece(int num) {
 }
 
 void printMove(Move m) {
+    std::cout << "=== MOVE PRINT ===" << std::endl;
     std::cout << numToPos(m.from) << numToPos(m.to) << std::endl;
     std::cout << "Piece = " << numToPiece(m.piece) << std::endl;
     std::cout << "Captured = " << numToPiece(m.captured) << std::endl;
@@ -721,8 +722,16 @@ void printMove(Move m) {
     if (m.flags & ENPASSANT) {
         std::cout << "Flag = ENPASSANT" << std::endl;
     } 
+    std::cout << std::endl;
 }
 
+void printKillers(const Move killers[2]) {
+    std::cout << "=== KILLERS ===" << std::endl;
+    for (int i = 0; i < 2; i++) {
+        printMove(killers[i]);
+    }
+    std::cout << std::endl;
+}
 
 bool canEnPassant(const Board& board, Color side) {
 
