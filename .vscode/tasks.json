@@ -1,0 +1,37 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Chessbot (debug)",
+            "type": "process",
+            "command": "C:\\msys64\\ucrt64\\bin\\g++.exe",
+            "args": [
+                "-std=c++17",
+                "-g",
+                "-O0",
+                "-pthread",
+                "attack.cpp",
+                "main.cpp",
+                "evaluation.cpp",
+                "moveGen.cpp",
+                "search.cpp",
+                "misc.cpp",
+                "globals.cpp",
+                "makeMove.cpp",
+                "movePicker.cpp",
+                "-o",
+                "${workspaceFolder}\\chessbot-debug.exe"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}
