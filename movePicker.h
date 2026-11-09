@@ -2,9 +2,11 @@
 #include "constants.h"
 #include "moveGen.h"
 
+using u32 = uint32_t;
+
 extern int history[2][64][64];
-extern Move killerMoves[64][2];
-extern Move moveStack[64][256];
+extern u32 killerMoves[64][2];
+extern u32 moveStack[64][256];
 extern int moveScores[64][256];
 
 enum Stage {
@@ -19,24 +21,24 @@ class MovePicker {
 public:
     static const int MAX_MOVES = 256;
 
-    MovePicker(Board& b, Move tt, int ply);
+    MovePicker(Board& b, u32 tt, int ply);
 
-    Move nextMove();
+    u32 nextMove();
 
     
 
 private:
     Board& board;
-    Move ttMove;      
+    u32 ttMove;      
     int ply;            
     int index;          // current move 
     int moveCount;
     int killerIndex;
     Stage stage;     
-    Move moves[MAX_MOVES];
+    u32 moves[MAX_MOVES];
     int scores[MAX_MOVES];
-    Move captures[MAX_MOVES];
-    Move quiets[MAX_MOVES];
+    u32 captures[MAX_MOVES];
+    u32 quiets[MAX_MOVES];
 
     int captureCount = 0;
     int quietCount = 0;
@@ -48,5 +50,5 @@ private:
 
     void scoreMoves(int start, int end);
     
-    Move pickBest();
+    u32 pickBest();
 };

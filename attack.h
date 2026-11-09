@@ -10,13 +10,15 @@
 #include "moveGen.h"
 #include "misc.h"
 
-bool isMoveLegal(Board& board, Move m);
+using u32 = uint32_t;
 
-int generateLegalMoves( Board& board, Color side, Move* moves);
+bool isMoveLegal(Board& board, u32 m, std::string debugInfo);
+
+int generateLegalMoves( Board& board, Color side, u32* moves);
 bool isSquareAttacked(const Board& board, Color Side, int attackedSquare);
 
 bool isKingInCheck(Color Side, const Board &board, std::string debugInfo);
 
-int generateCaptures(Board& board, Color side, Move* moves);
+int generateCaptures(Board& board, Color side, u32* moves, std::string debugInfo);
 
-int generateQuietMoves(Board& board, Move* moves);
+int generateQuietMoves(Board& board, Color side, u32* moves);

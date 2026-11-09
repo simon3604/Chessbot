@@ -17,7 +17,7 @@
 
 
 using u64 = uint64_t;
-
+using u32 = uint32_t;
 
 
 
@@ -50,7 +50,6 @@ int main() {
         }
     }
 
-    Move moveStack[MAX_PLY][MAX_MOVES];
 
     
     Board board{};
@@ -125,11 +124,11 @@ int main() {
                 searchThread.join();
 
             searchThread = std::thread([&board, go]() {
-                Move best = search(board, go);
+                u32 best = search(board, go);
                 
-                    std::string move = numToPos(best.from) + numToPos(best.to);
-                    if (best.promotion != NONE)
-                        std::cout << "bestmove " << move << getPieceLetter(best.promotion) << std::endl;
+                    std::string move = numToPos(fromSquare(best)) + numToPos(toSquare(best));
+                    if (promotionPiece(best) != NONE)
+                        std::cout << "bestmove " << move << getPieceLetter(promotionPiece(best)) << std::endl;
                     else
                         std::cout << "bestmove " << move << std::endl;
                     logToFile("engine: bestmove " + move);
@@ -205,9 +204,50 @@ int main() {
             iss >> token >> depth;  
             benchmarkSearch(board, depth, board.sideToMove);          
         }
+        else if (input == "print") {
+            logToFile(input);
+            printBoardAsLetters(board, false);
+            printBoard(board);
+        }
+        
+        else if (input.rfind("printMoves", 0) == 0) {
+            logToFile(input);
+            std::istringstream iss(input);
+            std::string token;
+            int depth;
+           
+
+            iss >> token >> depth;
+            printMoveList(board, depth, 0);  
+        }
+        else if (input == "hash") {
+            logToFile(input);
+            std::cout << "Hash: " << board.hash << std::endl;
+        }
+        else if (input == "help") {
+            logToFile(input);
+            std::cout << "Available commands:\n";
+            std::cout << "uci - Initialize UCI mode\n";
+            std::cout << "isready - Check if the engine is ready\n";
+            std::cout << "position [startpos | fen <FEN>] [moves <move1> <move2> ...] - Set up the board position\n";
+            std::cout << "go [wtime <ms>] [btime <ms>] [winc <ms>] [binc <ms>] [movestogo <num>] [depth <num>] [movetime <ms>] [infinite] - Start searching for the best move\n";
+            std::cout << "stop - Stop the current search\n";
+            std::cout << "quit - Exit the engine\n";
+            std::cout << "evaluate - Evaluate the current position\n";
+            std::cout << "perft <depth> - Run perft test to the specified depth\n";
+            std::cout << "benchmark <depth> - Benchmark search to the specified depth\n";
+            std::cout << "print - Print the current board position\n";
+            std::cout << "printMoves - Print all legal moves in the current position\n";
+            std::cout << "hash - Print the current Zobrist hash of the position\n";
+        }
+        else if (input != "") {
+            logToFile("GUI: Unknown command: " + input);
+        } 
+        
         else if (input != "quit") {
             logToFile(input);
         }
+
     }
 
     

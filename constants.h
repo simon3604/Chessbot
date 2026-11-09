@@ -8,13 +8,14 @@
 using u64 = uint64_t;
 
 enum Color {WHITE, BLACK};
-enum Piece {WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK, NONE};
+enum Piece {NONE, WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK};
 enum MoveFlags {
     QUIET      = 0,
     CAPTURE    = 1 << 0,
     ENPASSANT  = 1 << 1,
     CASTLING   = 1 << 2,
-    PROMOTION  = 1 << 3
+    PROMOTION  = 1 << 3,
+    ALL        = CAPTURE | ENPASSANT | CASTLING | PROMOTION
 };
 
 extern u64 nodes;
@@ -229,7 +230,7 @@ extern bool perfTest;
 extern int pst[12][64];
 
 struct Board {
-    u64 pieces[12];
+    u64 pieces[13];
 
     // Occupancies
     u64 all_white;
@@ -254,37 +255,12 @@ struct Board {
     u64 hash;
 };
 
-struct Move {
-    int from = -1;
-    int to = -1;
-    int from2 = -1;
-    int to2 = -1;
-    Piece piece;
-    Piece captured = NONE;
-    Piece promotion = NONE;
-    uint8_t flags =  QUIET;
 
-
-    
-    bool operator==(const Move& other) const {
-        return from == other.from &&
-               to == other.to &&
-               from2 == other.from2 &&
-               to2 == other.to2 &&
-               piece == other.piece &&
-               captured == other.captured &&
-               promotion == other.promotion && 
-               flags == other.flags;
-    }
-
-    bool operator!=(const Move& other) const {
-        return !(*this == other);
-    }
-};
 
 
 struct Undo {
     int enPassantSquare = -1;
+    Piece capturedPiece = NONE;
     int castlingRights;
     u64 hash;
     int halfmoveClock;

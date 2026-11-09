@@ -11,167 +11,188 @@
 #include "makeMove.h"
 
 using u64 = uint64_t;
+using u32 = uint32_t;
 
+bool isMoveLegal(Board &board, u32 m, std::string debugInfo)
+{
+    Piece piece = getPieceType(board, fromSquare(m));
+    Color side = ((piece <= WK) && (piece >= WP)) ? WHITE : BLACK;
 
-
-bool isMoveLegal(Board& board, Move m) {
-    Piece piece = getPieceType(board, m.from);
-
-    // 1. Piece must exist and match
-    if (piece == NONE || piece != m.piece)
+    // 1. Piece must exist
+    if (piece == NONE)
         return false;
 
     // 2. Can't capture own piece
-    Piece target = getPieceType(board, m.to);
-    Color targetColor = (target <= 5) ? WHITE : BLACK;
-    if (target != NONE && targetColor == board.sideToMove)
+    Piece target = getPieceType(board, toSquare(m));
+    if (target != NONE)
+    {
+        Color targetColor = pieceColor(target, "isMoveLegal");
+        if (targetColor == board.sideToMove)
+            return false;
+    }
+
+    // 3. Can't move to the same square
+    if (fromSquare(m) == toSquare(m))
         return false;
 
-    // 3. Capture consistency
-    if (m.captured != NONE && target == NONE && !(m.flags & ENPASSANT))
+    // 4. Can't move a piece that doesn't belong to the side to move
+    if (side != board.sideToMove)
         return false;
 
-    if (m.captured == NONE && target != NONE)
-        return false;
+    // 5. Capture consistency
+    Piece capturedPiece = (moveFlags(m) & CAPTURE) ? target : NONE;
 
-    if (((m.piece <= 5) && (board.sideToMove == BLACK)) || ((m.piece > 5 )&& (board.sideToMove == WHITE)))
+    if (capturedPiece == NONE && target != NONE)
         return false;
     
-    // 4. Make move and test check
-    Undo u = makeMove(m, board, "isMoveLegal");
-    bool illegal = isKingInCheck((m.piece <= 5) ? WHITE : BLACK, board, "isMoveLegal"); 
-    undoMove(m, board, u);
+    if (capturedPiece != NONE && target == NONE && ((moveFlags(m) & ENPASSANT) == 0))
+    {
+        return false;
+    }
+
+    if (moveFlags(m) & ENPASSANT)
+    {
+
+        if (toSquare(m) != board.enPassantSquare)
+        {
+            return false;
+        }
+    }
+
+    // 6. Make move and test check
+    Undo u = makeMove(m, board, "isMoveLegal, " + debugInfo);
+    bool illegal = isKingInCheck(side, board, "isMoveLegal, " + debugInfo);
+
+    undoMove(m, board, u, "isMoveLegal, " + debugInfo);
 
     return !illegal;
 }
 
-int generateLegalMoves (Board& board, Color side, Move* moves) {
-   
-    
-    int count = generatePseudoLegalMoves(board, side, moves);
+int generateLegalMoves(Board &board, Color side, u32 *moves)
+{
 
-    
+    int count = generatePseudoLegalMoves(board, side, moves);
 
     int legalCount = 0;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
 
-    
-        if (getPieceType(board, moves[i].from) == NONE) {
-            std::cout << "INVALID MOVE: from=" << moves[i].from << "\n";
+        if (getPieceType(board, fromSquare(moves[i])) == NONE)
+        {
+            std::cerr << "INVALID MOVE: from=" << fromSquare(moves[i]) << "\n";
             exit(1);
         }
         Board before = board;
-        
-        
 
-        if (isMoveLegal(board, moves[i])) {
-            moves[legalCount++] = moves[i];  // keep move
-        }
-        
-
-        
-
-        if (memcmp(&before, &board, sizeof(Board)) != 0) {
-            
-            sameBoard(before, board);
-            std::cout << "attack: UNDO BROKEN\n";
-            exit(1);
+        if (isMoveLegal(board, moves[i], "generateLegalMoves"))
+        {
+            moves[legalCount++] = moves[i]; // keep move
         }
 
+        
     }
 
     return legalCount;
-} 
+}
 
-bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
-    u64 occ = board.all_white | board.all_black; 
+bool isSquareAttacked(const Board &board, Color side, int attackedSquare)
+{
     Color attackingSide = (side == WHITE) ? BLACK : WHITE;
     u64 attackedSquareBB = 1ULL << attackedSquare;
 
+    // Pawns
+    if (attackingSide == WHITE)
+    {
 
-    //Pawns
-    if (attackingSide == WHITE) {
-        
         u64 pawns = board.pieces[WP];
         u64 pawnAttacks = ((pawns << 7) & ~FILE_H) | ((pawns << 9) & ~FILE_A);
-        if(pawnAttacks & attackedSquareBB) {
+        if (pawnAttacks & attackedSquareBB)
+        {
             return true;
         }
-    } 
-    else if (attackingSide == BLACK) {
-       
+    }
+    else if (attackingSide == BLACK)
+    {
+
         u64 pawns = board.pieces[BP];
         u64 pawnAttacks = ((pawns >> 7) & ~FILE_A) | ((pawns >> 9) & ~FILE_H);
-        if(pawnAttacks & attackedSquareBB) {
+        if (pawnAttacks & attackedSquareBB)
+        {
             return true;
-        } 
+        }
     }
 
-    //Knights
+    // Knights
     u64 knights = (attackingSide == WHITE) ? board.pieces[WN] : board.pieces[BN];
-    
-    
-    while (knights) {
+
+    while (knights)
+    {
         int fromSq = lsb(knights);
         knights &= knights - 1;
 
-        if (knightAttacks[fromSq] & attackedSquareBB) {
-            
+        if (knightAttacks[fromSq] & attackedSquareBB)
+        {
+
             return true;
         }
     }
 
-    //King
+    // King
     u64 king = (attackingSide == WHITE) ? board.pieces[WK] : board.pieces[BK];
-    
+
     int fromSq = lsb(king);
 
-    if (kingAttacks[fromSq] & attackedSquareBB) {
+    if (kingAttacks[fromSq] & attackedSquareBB)
+    {
 
         return true;
     }
 
-
-    //Bishops
+    // Bishops
     u64 bishops = (attackingSide == WHITE) ? board.pieces[WB] : board.pieces[BB];
-    
-    while (bishops) {
+
+    while (bishops)
+    {
         int fromSq = lsb(bishops);
         bishops &= bishops - 1;
 
-        u64 bishopAttacks = getBishopAttackMagics(fromSq, occ);
+        u64 bishopAttacks = getBishopAttackMagics(fromSq, board.all);
 
-        if (bishopAttacks & attackedSquareBB) {
+        if (bishopAttacks & attackedSquareBB)
+        {
             return true;
         }
     }
 
-    //Rooks
+    // Rooks
     u64 rooks = (attackingSide == WHITE) ? board.pieces[WR] : board.pieces[BR];
-    
-    while (rooks) {
+
+    while (rooks)
+    {
         int fromSq = lsb(rooks);
         rooks &= rooks - 1;
 
-        u64 rookAttacks = getRookAttackMagics(fromSq, occ);
+        u64 rookAttacks = getRookAttackMagics(fromSq, board.all);
 
-        if (rookAttacks & attackedSquareBB) {
+        if (rookAttacks & attackedSquareBB)
+        {
             return true;
         }
     }
 
-    //Queens
+    // Queens
     u64 queens = (attackingSide == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
-    
-    while (queens) {
+
+    while (queens)
+    {
         int fromSq = lsb(queens);
         queens &= queens - 1;
 
-        u64 queenAttacks = getQueenAttackMagics(fromSq, occ);
-    
+        u64 queenAttacks = getQueenAttackMagics(fromSq, board.all);
 
-        if (queenAttacks & attackedSquareBB) {
+        if (queenAttacks & attackedSquareBB)
+        {
             return true;
         }
     }
@@ -179,155 +200,203 @@ bool isSquareAttacked(const Board& board, Color side, int attackedSquare) {
     return false;
 }
 
-bool isKingInCheck(Color side, const Board &board, std::string debugInfo) {
-    u64 occ = board.all_white | board.all_black;
+bool isKingInCheck(Color side, const Board &board, std::string debugInfo)
+{
     u64 kingBB = (side == WHITE) ? board.pieces[WK] : board.pieces[BK];
-    
-    
-    if (!kingBB) {
-        std::cerr << "isKingInCheck: No King " << debugInfo << std::endl;
+
+    if (!kingBB)
+    {
+        std::cerr << "isKingInCheck: No King: " << debugInfo << std::endl;
         printBoardAsLetters(board, false);
         exit(1);
     }
 
     int kingSq = lsb(kingBB);
 
-
-    if (isSquareAttacked(board, side, kingSq)) {
-      return true;
+    if (isSquareAttacked(board, side, kingSq))
+    {
+        return true;
     }
 
     return false;
 }
 
-int generateCaptures(Board& board, Color side, Move* moves) {
-    u64 oppSideBB = (side == WHITE) ? board.all_black : board.all_white;
-    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+int generateCaptures(Board &board, Color side, u32 *moves, std::string debugInfo)
+{
     int count = 0;
 
+    u64 empty = ~board.all;
+    u64 ownPieces = (side == WHITE) ? board.all_white : board.all_black;
+    u64 oppPieces = (side == WHITE) ? board.all_black : board.all_white;
 
-    //PAWNS
+    //=== Pawns ===
     u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
-    u64 originalPawns = pawns;
 
-    while (pawns) {
-        int fromSq = lsb(pawns);
-        
-        pawns &= pawns - 1;
-        int toSq;
-        u64 fromSqBB = 1ULL << fromSq;
+    if (side == WHITE)
+    {
+        // === Captures left ===
+        u64 leftCaps = (pawns << 7) & ~FILE_H & board.all_black;
 
-        if (side == WHITE) {
-            if ((fromSqBB & ~FILE_A)) {
-                toSq = fromSq + 7;
-                if (toSq >= 0 && toSq < 64) {
-                    if (oppSideBB & (1ULL << toSq)) {
-                        if (fromSqBB & RANK_7) {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
+        while (leftCaps)
+        {
+            int toSq = lsb(leftCaps);
+            leftCaps &= leftCaps - 1;
 
-                        } else {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
-                        }
-                    }
-                }
-                    
+            int fromSq = toSq - 7;
+
+            if ((1ULL << toSq) & RANK_8)
+            {
+                moves[count++] = mkMove(fromSq, toSq, WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WN, CAPTURE | PROMOTION);
             }
-
-            if ((fromSqBB & ~FILE_H)) {
-                toSq = fromSq + 9;
-                if (toSq >= 0 && toSq < 64) {
-                    if (oppSideBB & (1ULL << toSq)) {
-                        if (fromSqBB & RANK_7) {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
-
-                        } else {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
-                        }
-                    }
-                }
-                    
-            }
-        } else {
-            if ((fromSqBB & ~FILE_H)) {
-                toSq = fromSq - 7;
-                if (toSq >= 0 && toSq < 64) {
-                    if (oppSideBB & (1ULL << toSq)) {
-                        if (fromSqBB & RANK_2) {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
-
-                        } else {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
-                        }
-                    }
-                }
-                    
-            }
-
-            if ((fromSqBB & ~FILE_A)) {
-                toSq = fromSq - 9;
-                if (toSq >= 0 && toSq < 64) {
-                    if (oppSideBB & (1ULL << toSq)) {
-                        if (fromSqBB & RANK_2) {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
-
-                        } else {
-                            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
-                        }
-                    }
-                }
-                    
+            else
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
 
-        if (board.enPassantSquare != -1) {
-            int epSq = board.enPassantSquare;
-            int fromEp;
+        // === Captures right ===
+        u64 rightCaps = (pawns << 9) & ~FILE_A & board.all_black;
 
-            if (side == WHITE) {
-                if (epSq % 8 != 0) {  // left EP
-                    fromEp = epSq - 9;
-                    if ((fromEp >= 0 && fromEp < 64) && (originalPawns & (1ULL << fromEp))) {
-                        moves[count++] = mkMove(fromEp, epSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
-                    }
-                }
-                if (epSq % 8 != 7) {  // right EP
-                    fromEp = epSq - 7;
-                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
-                        moves[count++] = mkMove(fromEp, epSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
-                    }
-                }
-            } else {  // black
-                if (epSq % 8 != 0) {  // left EP
-                    fromEp = epSq + 7;
-                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) { 
-                        moves[count++] = mkMove(fromEp, epSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
-                    }
-                }
-                if (epSq % 8 != 7) {  // right EP
-                    fromEp = epSq + 9;
-                    if (fromEp >= 0 && fromEp < 64 && (originalPawns & (1ULL << fromEp))) {
-                        moves[count++] = mkMove(fromEp, epSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
-                    }
-                }
+        while (rightCaps)
+        {
+            int toSq = lsb(rightCaps);
+            rightCaps &= rightCaps - 1;
+
+            int fromSq = toSq - 9;
+
+            if ((1ULL << toSq) & RANK_8)
+            {
+                moves[count++] = mkMove(fromSq, toSq, WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WN, CAPTURE | PROMOTION);
+            }
+            else
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
-        
 
+        // En passant
+
+        if (board.enPassantSquare != -1)
+        {
+            u64 epBB = 1ULL << board.enPassantSquare;
+
+            // left EP (<<7)
+            u64 epLeft = (pawns << 7) & ~FILE_H & epBB;
+
+            while (epLeft)
+            {
+                int toSq = lsb(epLeft);
+                epLeft &= epLeft - 1;
+
+                int fromSq = toSq - 7;
+
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
+            }
+
+            // right EP (<<9)
+            u64 epRight = (pawns << 9) & ~FILE_A & epBB;
+
+            while (epRight)
+            {
+                int toSq = lsb(epRight);
+                epRight &= epRight - 1;
+
+                int fromSq = toSq - 9;
+
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
+            }
+        }
+    }
+    else
+    {
+
+        // === Captures left ===
+        u64 leftCaps = (pawns >> 9) & ~FILE_H & board.all_white;
+
+        while (leftCaps)
+        {
+            int toSq = lsb(leftCaps);
+            leftCaps &= leftCaps - 1;
+
+            int fromSq = toSq + 9;
+
+            if ((1ULL << toSq) & RANK_1)
+            {
+                moves[count++] = mkMove(fromSq, toSq, BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BN, CAPTURE | PROMOTION);
+            }
+            else
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
+        }
+
+        // === Captures right ===
+        u64 rightCaps = (pawns >> 7) & ~FILE_A & board.all_white;
+
+        while (rightCaps)
+        {
+            int toSq = lsb(rightCaps);
+            rightCaps &= rightCaps - 1;
+
+            int fromSq = toSq + 7;
+
+            if ((1ULL << toSq) & RANK_1)
+            {
+                moves[count++] = mkMove(fromSq, toSq, BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BN, CAPTURE | PROMOTION);
+            }
+            else
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
+        }
+
+        // En passant
+
+        if (board.enPassantSquare != -1)
+        {
+            u64 epBB = 1ULL << board.enPassantSquare;
+
+            // left EP (>>9)
+            u64 epLeft = (pawns >> 9) & ~FILE_H & epBB;
+
+            while (epLeft)
+            {
+                int toSq = lsb(epLeft);
+                epLeft &= epLeft - 1;
+
+                int fromSq = toSq + 9;
+
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
+            }
+
+            // right EP (>>7)
+            u64 epRight = (pawns >> 7) & ~FILE_A & epBB;
+
+            while (epRight)
+            {
+                int toSq = lsb(epRight);
+                epRight &= epRight - 1;
+
+                int fromSq = toSq + 7;
+
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
+            }
+        }
     }
 
-    //KNIGHTS
+    //=== Knights ===
     u64 knights = (side == WHITE) ? board.pieces[WN] : board.pieces[BN];
 
     while (knights)
@@ -335,93 +404,148 @@ int generateCaptures(Board& board, Color side, Move* moves) {
         int fromSq = lsb(knights);
         knights &= knights - 1;
 
+        u64 attacks = knightAttacks[fromSq] & ~ownPieces;
 
-        u64 captures = knightAttacks[fromSq] & ~ownPieces & oppSideBB;
-
-        while (captures)
+        while (attacks)
         {
-            int toSq = lsb(captures);
-            captures &= captures - 1;
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WN : BN, getPieceType(board, toSq), NONE, CAPTURE);
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            Piece captured;
+            if ((1ULL << toSq) & oppPieces)
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
         }
     }
 
-    //BISHOPS
-    u64 occ = oppSideBB | ownPieces;
-    u64 bishops = (side == WHITE) ? board.pieces[WB] : board.pieces[BB];
-
-    while (bishops)
-    {
-        
-        int fromSq = lsb(bishops);
-        bishops &= bishops - 1;
-
-        u64 captures = getBishopAttackMagics(fromSq, occ);
-        captures &= ~ownPieces & oppSideBB;
-
-        while (captures)
-        {
-            int toSq = lsb(captures);
-            captures &= captures - 1;
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WB : BB, getPieceType(board, toSq), NONE, CAPTURE);
-        }
-    }
-
-    //ROOKS
+    //=== Rooks ===
     u64 rooks = (side == WHITE) ? board.pieces[WR] : board.pieces[BR];
 
     while (rooks)
     {
-        
+
         int fromSq = lsb(rooks);
         rooks &= rooks - 1;
 
-        u64 captures = getRookAttackMagics(fromSq, occ);
-        captures &= ~ownPieces & oppSideBB;
+        u64 attacks = getRookAttackMagics(fromSq, board.all);
+        attacks &= ~ownPieces;
 
-        while (captures)
+        while (attacks)
         {
-            int toSq = lsb(captures);
-            captures &= captures - 1;
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WR : BR, getPieceType(board, toSq), NONE, CAPTURE);
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            Piece captured;
+            if ((1ULL << toSq) & oppPieces)
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
         }
     }
 
-    //QUEENS
+    //=== Bishops ===
+
+    u64 bishops = (side == WHITE) ? board.pieces[WB] : board.pieces[BB];
+
+    while (bishops)
+    {
+
+        int fromSq = lsb(bishops);
+        bishops &= bishops - 1;
+
+        u64 attacks = getBishopAttackMagics(fromSq, board.all);
+        attacks &= ~ownPieces;
+
+        while (attacks)
+        {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+            Piece captured;
+            if ((1ULL << toSq) & oppPieces)
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
+        }
+    }
+
+    //=== Queens ===
+
     u64 queens = (side == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
 
     while (queens)
     {
-        
         int fromSq = lsb(queens);
         queens &= queens - 1;
 
-        u64 captures = getBishopAttackMagics(fromSq, occ) | getRookAttackMagics(fromSq, occ);
-        captures &= ~ownPieces & oppSideBB;
+        u64 attacks = getQueenAttackMagics(fromSq, board.all);
+        attacks &= ~ownPieces;
 
-        while (captures)
+        while (attacks)
         {
-            int toSq = lsb(captures);
-            captures &= captures - 1;
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (side == WHITE) ? WQ : BQ, getPieceType(board, toSq), NONE, CAPTURE);
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+
+            if ((1ULL << toSq) & oppPieces)
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
         }
     }
 
-    return count;
+    //=== King ===
+
+    u64 king = (side == WHITE) ? board.pieces[WK] : board.pieces[BK];
+
+    if (king)
+    {
+
+        int fromSq = lsb(king);
+        u64 attacks = kingAttacks[fromSq] & ~ownPieces;
+
+        // Normal king moves
+        while (attacks)
+        {
+            int toSq = lsb(attacks);
+            attacks &= attacks - 1;
+
+            if ((1ULL << toSq) & oppPieces)
+            {
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
+            }
+        }
+    }
+
+    if (count >= 256)
+    {
+        std::cerr << "OVERFLOW inside generator\n";
+        exit(1);
+    }
+    Color oldSide = board.sideToMove;
+    board.sideToMove = side;
+
+    int legalCount = 0;
+    for (int i = 0; i < count; i++)
+    {
+        u32 m = moves[i];
+
+        if (isMoveLegal(board, m, "generateCaptures"))
+            moves[legalCount++] = moves[i];
+    }
+
+    board.sideToMove = oldSide;
+    return legalCount;
 }
 
-
-int generateQuietMoves(Board& board, Move* moves) {
+int generateQuietMoves(Board &board, Color side, u32 *moves)
+{
     int moveCount = generateLegalMoves(board, board.sideToMove, moves);
     int quietCount = 0;
 
-    for (int i = 0; i < moveCount; i++) {
-        Move m = moves[i];
+    for (int i = 0; i < moveCount; i++)
+    {
+        u32 m = moves[i];
 
-        if (m.flags & QUIET) 
+        if (moveFlags(m) == QUIET)
             moves[quietCount++] = moves[i];
-
-        
     }
 
     return quietCount;

@@ -34,7 +34,7 @@ u64 nodes = 0;
 bool perfTest = false;
 
 
-Move killerMoves[64][2]; // [depth][2 slots]
+uint32_t killerMoves[64][2]; // [depth][2 slots]
 
 int history[2][64][64]; // side, from, to
 
@@ -43,7 +43,16 @@ u64 zobristSide;
 u64 zobristCastling[16]; 
 u64 zobristEnPassant[8];
 
-Move moveStack[MAX_PLY][MAX_MOVES];
+uint32_t moveStack[MAX_PLY][MAX_MOVES];
 int moveScores[MAX_PLY][MAX_MOVES];
 
 int pst[12][64];
+
+
+// 32-bit move layout
+// bits:
+// 0–5   : from (0–63)
+// 6–11  : to (0–63)
+// 12–15 : promotion (0–15)
+// 16–19 : flags (capture, castle, en passant, etc.)
+// 20–31 : optional (captured piece, etc. or unused)

@@ -12,15 +12,21 @@
 #include <fstream>
 #include <random>
 #include "constants.h"
+#include "moveGen.h"
+
+using u64 = uint64_t;
+using u32 = uint32_t;
 
 
 void seedRNG(uint64_t seed = 5489ULL);
 
 std::string numToPiece(int num);
-void printMove(Move m);
+void printMove(const Board& board, u32 m);
 void benchmarkSearch(Board board, int depth, Color side);
 
 void print_bitboard(u64 bb);
+
+void printBoard(const Board& board);
 
 std::string print_bitboardForLog(u64 bb);
 
@@ -32,16 +38,18 @@ inline void logToFile(const std::string message) {
     }
 }
 
-void printMove(Move m);
+void printMove(const Board& board, u32 m);
 
-void printKillers(const Move killers[2]);
+void printKillers(const Board& board, const u32 killers[2]);
 
+int getRookFromSquare(u32 m, Color side);
+int getRookToSquare(u32 m, Color side);
 
 std::string printBoardAsLetters(const Board& board, bool forLog);
 
 inline const u64* getTypeBB(int pos,const Board& board) {
     u64 mask = 1ULL << pos;
-    for (int p = 0; p < 12; p++) {
+    for (int p = WP; p <= BK; p++) {
         if (mask & board.pieces[p]) {
             return &board.pieces[p];
         }
@@ -102,7 +110,7 @@ int pieceValueAtSq(const Board& board, int sq);
 
 bool has_non_pawn_material(Board& board, Color side);
 
-Move parseUCIMove(const std::string& moveStr, Board& board);
+u32 parseUCIMove(const std::string& moveStr, Board& board);
 
 
 void parsePositionCommand(const std::string& input, Board& board, Color side);
@@ -110,6 +118,13 @@ void parsePositionCommand(const std::string& input, Board& board, Color side);
 bool sameBoard(const Board& a, const Board& b);
 
 Color getColor(const Board& board, int sq);
+
+inline int getCapturedSquare(u32 m) {
+    if (moveFlags(m) & ENPASSANT) {
+        return (fromSquare(m) + toSquare(m)) / 2; // En passant capture square is between from and to
+    }
+    return toSquare(m);
+}
 
 
 inline Piece getPieceType(const Board& board, int sq) {
@@ -154,6 +169,16 @@ inline int pieceValue(Piece p) {
     }
 }
 
+inline Color pieceColor(Piece p, std::string debug) {
+    if (p >= WP && p <= WK) return WHITE;
+    if (p >= BP && p <= BK) return BLACK;
+    if (p == NONE && debug != "NONE") {
+        std::cerr << "pieceColor: NONE piece type encountered. Debug info: " << debug << std::endl;
+        return WHITE; // Default to WHITE for NONE, but this should be handled carefully
+    }
+    return WHITE; 
+}
+
 void initZobrist();
 
 bool canEnPassant(const Board& board, Color side);
@@ -170,5 +195,6 @@ u64 attackers(const Board& board, Color side, int sq);
 
 void hashXor(Board& board, u64& hash, u64 key, const std::string& label);
 
+void printMoveList(Board& board, int depth, int ply);
 
 

@@ -17,6 +17,9 @@
 #include <random>
 #include "movePicker.h"
 
+using u64 = uint64_t;
+using u32 = uint32_t;
+
 std::mt19937_64 rng;  // global RNG
 
 void seedRNG(uint64_t seed) {
@@ -34,7 +37,7 @@ void benchmarkSearch(Board board, int depth, Color side)
     GoParams go = {};
     go.depth = depth;
 
-    Move bestMove = search(board, go);
+    u32 bestMove = search(board, go);
 
     auto end = std::chrono::high_resolution_clock::now();
 
@@ -267,7 +270,20 @@ Board fenUnloader(const std::string& fen) {
     return board;
 }
 
-
+void printBoard(const Board& board) {
+    for (int p = WP; p <= BK; p++) {
+        std::cout << "Piece " << numToPiece(p) << ":\n";
+        print_bitboard(board.pieces[p]);
+        std::cout << "\n";
+    }
+    std::cout << "All White:\n";
+    print_bitboard(board.all_white);
+    std::cout << "\n";
+    std::cout << "All Black:\n";
+    print_bitboard(board.all_black);
+    std::cout << "All:\n";
+    print_bitboard(board.all);
+}
 
 // std::string randomMove(std::vector<Move>& moves, Color side, Board& board) {
     
@@ -328,7 +344,7 @@ bool has_non_pawn_material(Board& board, Color side) {
     return false;
 }
 
-Move parseUCIMove(const std::string& moveStr, Board& board) {
+u32 parseUCIMove(const std::string& moveStr, Board& board) {
     // Defensive check
     if (moveStr.size() < 4) {
         std::cerr << "Invalid UCI move: " << moveStr << "\n";
@@ -381,34 +397,26 @@ Move parseUCIMove(const std::string& moveStr, Board& board) {
 
     //castling
 
-    int from2 = -1;
-    int to2 = -1;
+    int from2 = getRookFromSquare(mkMove(from, to, promotion, 0), board.sideToMove);
+    int to2 = getRookToSquare(mkMove(from, to, promotion, 0), board.sideToMove);
 
-    if (from == 4 && to == 6) { // white O-O
-        from2 = 7;
-        to2 = 5;
+    //flags
+    uint8_t flags = QUIET;
+    if (from2 != -1 && to2 != -1) {
+        flags |= CASTLING;
+    } else if (promotion != NONE) {
+        flags |= PROMOTION;
+    } else if (captured != NONE) {
+        flags |= CAPTURE;
+    } else if (to == board.enPassantSquare) {
+        flags |= ENPASSANT;
     }
-    else if (from == 4 && to == 2) { // white O-O-O
-        from2 = 0;
-        to2 = 3;
-    }
-    else if (from == 60 && to == 62) { // black O-O
-        from2 = 63;
-        to2 = 61;
-    }
-    else if (from == 60 && to == 58) { // black O-O-O
-        from2 = 56;
-        to2 = 59;
-    }
+
+    
 
     // Construct the Move
-    Move move;
-    move.from = from;
-    move.to = to;
-    move.from2 = from2;
-    move.to2 = to2;
-    move.captured = captured;
-    move.promotion = promotion;
+    u32 move = mkMove(from, to, promotion, flags);
+    
     return move;
 }
 
@@ -455,7 +463,7 @@ void parsePositionCommand(const std::string& input, Board& board, Color side) {
     if (iss >> movesKeyword && movesKeyword == "moves") {
         std::string moveStr;
         while (iss >> moveStr) {
-            Move move = parseUCIMove(moveStr, board);
+            u32 move = parseUCIMove(moveStr, board);
             makeMove(move, board, "fen-unloader");
         
         }
@@ -571,7 +579,7 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
 
     Color side = board.sideToMove;
 
-    Move* moves = moveStack[ply];
+    u32* moves = moveStack[ply];
     int count = generateLegalMoves(board, side, moves);
     Color opp = (side == WHITE) ? BLACK : WHITE;
 
@@ -580,18 +588,18 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
     
 
     for (int i = 0; i < count; i++) {
-        Move m = moves[i];
+        u32 m = moves[i];
         Undo u = makeMove(m, board, "perft");
 
         if (depth == 1) {
-            if (m.captured != NONE || (m.flags & ENPASSANT)) captures++;
-            if (m.promotion != NONE) promotions++;
-            if (m.from2 != -1) castles++;
-            if (m.flags & ENPASSANT) enPassants++;
+            if (moveFlags(m) & CAPTURE) captures++;
+            if (moveFlags(m) & PROMOTION) promotions++;
+            if (moveFlags(m) & CASTLING) castles++;
+            if (moveFlags(m) & ENPASSANT) enPassants++;
             bool inCheck = isKingInCheck(opp, board, "perft");
             if (inCheck) {
                 checks++;
-                Move* oppMoves = moveStack[ply + 1];
+                u32* oppMoves = moveStack[ply + 1];
                 int oppCount = generateLegalMoves(board, opp, oppMoves);
                 if (oppCount == 0) checkmates++;
             }
@@ -602,9 +610,9 @@ u64 perft(Board& board, int ply, int depth, u64& captures, u64& promotions, u64&
         nodes = perft(board, ply + 1, depth - 1, captures, promotions, castles, enPassants, checks, checkmates);
         total += nodes;
 
-        undoMove(m, board, u);
+        undoMove(m, board, u, "perft");
         if (ply == 0) {
-            std::cout << numToPos(m.from) << numToPos(m.to) << ": " << nodes << "\n";
+            std::cout << numToPos(fromSquare(m)) << numToPos(toSquare(m)) << ": " << nodes << "\n";
     
         }
     
@@ -639,98 +647,130 @@ void initZobrist() {
         zobristEnPassant[i] = dist(rng);
 }
 std::string numToPiece(int num) {
-    if (num > 12) {
-        return "NUM > 12";
+    if (num > 13) {
+        return "NUM > 13";
     }
     switch (num)
     {
     case 0:
+        return "NONE";
+        break;
+    case 1:
         return "WP";
         break;
 
-    case 1:
+    case 2:
         return "WN";
         break;
     
-    case 2:
+    case 3:
         return "WB";
         break;
     
-    case 3:
+    case 4:
         return "WR";
         break;
 
-    case 4:
+    case 5:
         return "WQ";
         break;
 
-    case 5:
+    case 6:
         return "WK";
         break;
 
-    case 6:
+    case 7:
         return "BP";
         break;
 
-    case 7:
+    case 8:
         return "BN";
         break;
 
-    case 8:
+    case 9:
         return "BB";
         break;
 
-    case 9:
+    case 10:
         return "BR";
         break;
 
-    case 10:
+    case 11:
         return "BQ";
         break;
 
-    case 11:
+    case 12:
         return "BK";
         break;
     
 
-    case 12:
+    case 13:
         return "NONE";
         break;
     }
-    return "BAD NUM";
+    return "NUM IS NEGATIVE";
     
 }
 
-void printMove(Move m) {
+void printMove(const Board& board, u32 m) {
+    int from = fromSquare(m);
+    int to = toSquare(m);
     std::cout << "=== MOVE PRINT ===" << std::endl;
-    std::cout << numToPos(m.from) << numToPos(m.to) << std::endl;
-    std::cout << "Piece = " << numToPiece(m.piece) << std::endl;
-    std::cout << "Captured = " << numToPiece(m.captured) << std::endl;
-    std::cout << "Promotion = " << numToPiece(m.promotion) << std::endl;
-    if (m.flags == QUIET) {
+    std::cout << std::bitset<32>(m) << '\n';
+    std::cout << numToPos(from) << numToPos(to) << std::endl;
+    std::cout << "Piece = " << numToPiece(getPieceType(board, from)) << std::endl;
+    std::cout << "Captured = " << numToPiece(getPieceType(board, getCapturedSquare(m))) << std::endl;
+    std::cout << "Promotion = " << numToPiece(promotionPiece(m)) << std::endl;
+    if (moveFlags(m) == QUIET) {
         std::cout << "Flag = QUIET" << std::endl;
     }
-    if (m.flags & CAPTURE) {
+    if (moveFlags(m) & CAPTURE) {
         std::cout << "Flag = CAPTURE" << std::endl;
     }
-    if (m.flags & PROMOTION) {
+    if (moveFlags(m) & PROMOTION) {
         std::cout << "Flag = PROMOTION" << std::endl;
     }
-    if (m.flags & CASTLING) {
+    if (moveFlags(m) & CASTLING) {
         std::cout << "Flag = CASTLING" << std::endl;
     }
-    if (m.flags & ENPASSANT) {
+    if (moveFlags(m) & ENPASSANT) {
         std::cout << "Flag = ENPASSANT" << std::endl;
     } 
     std::cout << std::endl;
 }
 
-void printKillers(const Move killers[2]) {
+void printKillers(const Board& board, const u32 killers[2]) {
     std::cout << "=== KILLERS ===" << std::endl;
     for (int i = 0; i < 2; i++) {
-        printMove(killers[i]);
+        printMove(board, killers[i]);
     }
     std::cout << std::endl;
+}
+
+int getRookFromSquare(u32 m, Color side) {
+    if (side == WHITE) {
+        if (fromSquare(m) == 4 && toSquare(m) == 6) return 7; // kingside
+        if (fromSquare(m) == 4 && toSquare(m) == 2) return 0; // queenside
+    } else { // BLACK
+        if (fromSquare(m) == 60 && toSquare(m) == 62) return 63; // kingside
+        if (fromSquare(m) == 60 && toSquare(m) == 58) return 56; // queenside
+    }
+
+    std::cerr << "getRookFromSquare: Not a rook square for castling" << std::endl;
+    return -1; // Not a rook square for castling
+}
+
+int getRookToSquare(u32 m, Color side) {
+    if (side == WHITE) {
+        if (fromSquare(m) == 4 && toSquare(m) == 6) return 5; // kingside
+        if (fromSquare(m) == 4 && toSquare(m) == 2) return 3; // queenside
+    } else { // BLACK
+        if (fromSquare(m) == 60 && toSquare(m) == 62) return 61; // kingside
+        if (fromSquare(m) == 60 && toSquare(m) == 58) return 59; // queenside
+    }
+
+    std::cerr << "getRookToSquare: Not a rook square for castling" << std::endl;
+    return -1; // Not a rook square for castling
 }
 
 bool canEnPassant(const Board& board, Color side) {
@@ -782,7 +822,7 @@ u64 computeHash(const Board& board, Color side) {
     }
 
     // Side to move
-    if (board.sideToMove == BLACK)
+    if (side == BLACK)
         hash ^= zobristSide;
 
     // Castling rights
@@ -1036,3 +1076,18 @@ void hashXor(Board& board, u64& hash, u64 key, const std::string& label) {
 
     std::cout << "Correct hash (white): " << computeHash(board, board.sideToMove) << "\n";
 }
+
+
+void printMoveList(Board& board, int depth, int ply) {
+    int count = generateLegalMoves(board, board.sideToMove, moveStack[ply]);
+    std::cout << "Legal moves depth " << depth << " (" << count << "):\n";
+    for (int i = 0; i < count; i++) {
+        printMove(board, moveStack[ply][i]);
+        
+        if (depth > 1) {
+            Undo u = makeMove(moveStack[ply][i], board, "printMoveList");
+            printMoveList(board, depth - 1, ply + 1);
+            undoMove(moveStack[ply][i], board, u, "printMoveList");
+        }
+    } 
+};

@@ -1,24 +1,28 @@
 #include "movePicker.h"
 #include "makeMove.h"
 #include "misc.h"
+#include "attack.h"
+
+using u32 = uint32_t;
 
 void MovePicker::scoreMoves(int start, int end)
 {
 
   for (int i = start; i < end; i++)
   {
-    Move m = moves[i];
+    u32 m = moves[i];
     scores[i] = 0;
-    Piece victim = m.captured;
-    Piece attacker = getPieceType(board, m.from);
+    Piece victim = (moveFlags(m) & ENPASSANT) ? getPieceType(board, (board.sideToMove == WHITE) ? toSquare(m) - 8 : toSquare(m) + 8) : getPieceType(board, fromSquare(m));
+
+    Piece attacker = getPieceType(board, fromSquare(m));
 
     // 1. TT move
-    if (m.from == ttMove.from && m.to == ttMove.to)
+    if (ttMove != 0ULL && fromSquare(m) == fromSquare(ttMove) && toSquare(m) == toSquare(ttMove))
       scores[i] += 1000000;
 
     // 2. Promotions
-    if (m.promotion != NONE)
-      scores[i] += 100000 + pieceValue(m.promotion);
+    if (promotionPiece(m) != NONE)
+      scores[i] += 100000 + pieceValue(promotionPiece(m));
 
     // 3. Captures
     if (victim != NONE)
@@ -31,11 +35,11 @@ void MovePicker::scoreMoves(int start, int end)
       scores[i] += 8000;
 
     // 5. History
-    scores[i] += history[board.sideToMove][m.from][m.to];
+    scores[i] += history[board.sideToMove][fromSquare(m)][toSquare(m)];
   }
 }
 
-Move MovePicker::pickBest()
+u32 MovePicker::pickBest()
 {
   int end = (stage == CAPTURE_STAGE) ? captureEnd : moveCount;
 
@@ -51,11 +55,11 @@ Move MovePicker::pickBest()
     std::swap(moves[index], moves[best]);
     std::swap(scores[index], scores[best]);
 
-    Move m = moves[index++];
-    if (m.piece == NONE)
+    u32 m = moves[index++];
+    if (getPieceType(board, fromSquare(m)) == NONE)
     {
-      std::cout << "CORRUPTED MOVE DETECTED\n";
-      std::cout << "from=" << m.from << " to=" << m.to << "\n";
+      std::cerr << "CORRUPTED MOVE DETECTED\n";
+      std::cerr << "from=" << fromSquare(m) << " to=" << toSquare(m) << "\n";
       exit(1);
     }
     if (m == ttMove)
@@ -64,10 +68,10 @@ Move MovePicker::pickBest()
     return m;
   }
 
-  return Move{-1, -1, -1, -1, NONE, NONE};
+  return 0;
 }
 
-Move MovePicker::nextMove()
+u32 MovePicker::nextMove()
 {
 
   while (true)
@@ -77,18 +81,27 @@ Move MovePicker::nextMove()
     {
       stage = CAPTURE_STAGE;
 
-      if (ttMove.from != -1)
+      Color side = pieceColor(getPieceType(board, fromSquare(ttMove)), "NONE");
+      if ((getPieceType(board, fromSquare(ttMove)) == NONE && ttMove != 0ULL))
       {
+        ttMove = 0;
+      }
+      if (toSquare(ttMove) & (side == WHITE) ? board.all_white : board.all_black) {
+         ttMove = 0;
+      }
+      if (ttMove != 0ULL)
+      {
+
         Color originalSide = board.sideToMove;
         Undo u = makeMove(ttMove, board, "MovePicker, TT");
 
         if (!isKingInCheck(originalSide, board, "MovePicker, TT"))
         {
-          undoMove(ttMove, board, u);
+          undoMove(ttMove, board, u, "MovePicker, TT");
           return ttMove;
         }
 
-        undoMove(ttMove, board, u);
+        undoMove(ttMove, board, u, "MovePicker, TT 2");
       }
     }
 
@@ -98,7 +111,7 @@ Move MovePicker::nextMove()
 
       if (moveCount == 0)
       {
-        moveCount = generateCaptures(board, board.sideToMove, moves);
+        moveCount = generateCaptures(board, board.sideToMove, moves, "MovePicker, Captures");
 
         captureEnd = moveCount;
         scoreMoves(0, captureEnd);
@@ -106,8 +119,8 @@ Move MovePicker::nextMove()
         index = 0;
       }
 
-      Move m;
-      while ((m = pickBest()).from != -1)
+      u32 m;
+      while ((m = pickBest()) != 0)
       {
         return m;
       }
@@ -120,29 +133,37 @@ Move MovePicker::nextMove()
     {
       while (killerIndex < 2)
       {
-        Move m = killerMoves[ply][killerIndex++];
+        u32 m = killerMoves[ply][killerIndex++];
 
         if (m == ttMove)
           continue;
 
-        if (m.piece == NONE)
+        if (!isMoveLegal(board, m, "MovePicker, Killers"))
           continue;
 
-        if (getPieceType(board, m.from) != m.piece)
-          continue;
+        bool existsInMoves = false;
+        for (int i = 0; i < MAX_MOVES; i++)
+        {
+
+          if (moves[i] == m)
+          {
+            existsInMoves = true;
+            break;
+          }
+        }
 
         Color originalSide = board.sideToMove;
 
-        printMove(m);
         Undo u = makeMove(m, board, "MovePicker, Killers");
 
         if (!isKingInCheck(originalSide, board, "MovePicker, Killers"))
         {
-          undoMove(m, board, u);
+          undoMove(m, board, u, "MovePicker, Killers");
+          
           return m;
-        } 
+        }
 
-        undoMove(m, board, u);
+        undoMove(m, board, u, "MovePicker, Killers 2");
       }
 
       stage = QUIET_STAGE;
@@ -156,19 +177,7 @@ Move MovePicker::nextMove()
 
       if (moveCount == captureEnd)
       {
-        int count = generateLegalMoves(board, board.sideToMove, moves + captureEnd);
-
-        int quietCount = 0;
-
-        for (int i = 0; i < count; i++)
-        {
-          Move m = moves[captureEnd + i];
-
-          if (m.captured == NONE && m.promotion == NONE)
-          {
-            moves[captureEnd + quietCount++] = m;
-          }
-        }
+        int quietCount = generateQuietMoves(board, board.sideToMove, moves + captureEnd);
 
         int quietStart = captureEnd;
         moveCount = captureEnd + quietCount;
@@ -178,9 +187,10 @@ Move MovePicker::nextMove()
         index = captureEnd;
       }
 
-      Move m;
-      while ((m = pickBest()).from != -1)
+      u32 m;
+      while ((m = pickBest()) != 0)
       {
+        
         return m;
       }
 
@@ -188,11 +198,11 @@ Move MovePicker::nextMove()
     }
 
     // === DONE ===
-    return Move{-1, -1, -1, -1, NONE, NONE};
+    return 0;
   }
 }
 
-MovePicker::MovePicker(Board &b, Move tt, int pl)
+MovePicker::MovePicker(Board &b, u32 tt, int pl)
     : board(b), ttMove(tt), ply(pl),
       stage(TT_STAGE),
       index(0),

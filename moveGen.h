@@ -10,6 +10,7 @@
 #include "constants.h"
 
 using u64 = uint64_t;
+using u32 = uint32_t;
 
 
 int lsb(u64 bb);
@@ -17,8 +18,16 @@ int msb(u64 bb);
 
 int popcount(u64 x);
 
+inline int fromSquare(const u32 move) { return move & 0x3F; }
+inline int toSquare(const u32 move) { return (move >> 6) & 0x3F; }
+inline Piece promotionPiece(const u32 move) { 
+    return static_cast<Piece>((move >> 12) & 0xF); 
+}
 
-Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, uint8_t flag);
+inline int moveFlags(const u32 move) { return (move >> 16) & 0xF; }
+
+
+u32 mkMove(int from, int to, Piece promotion, uint8_t flag);
 u64 setOccupancy(int index, int bits, u64 mask);
 
 
@@ -53,17 +62,17 @@ u64 getQueenAttackMagics(int sq, u64 occ);
 
 
 
-int generatePawnMoves(const Board& board, Color Side, u64 occ, Move* moves);
+int generatePawnMoves(const Board& board, Color Side, u64 occ, u32* moves);
 
-int generateKnightMoves(const Board& board, Color Side, u64 occ, Move* moves);
+int generateKnightMoves(const Board& board, Color Side, u64 occ, u32* moves);
 
-int generateRookMoves(const Board& board, Color Side, u64 occ, Move* moves);
+int generateRookMoves(const Board& board, Color Side, u64 occ, u32* moves);
 
-int generateBishopMoves(Board &board, Color side, u64 occ, Move* moves);
+int generateBishopMoves(Board &board, Color side, u64 occ, u32* moves);
 
-int generateQueenMoves(const Board& board, Color Side, u64 occ, Move* moves);
+int generateQueenMoves(const Board& board, Color Side, u64 occ, u32* moves);
 
-int generateKingMoves(const Board& board, Color Side, u64 occ, Move* moves);
+int generateKingMoves(const Board& board, Color Side, u64 occ, u32* moves);
 
-int generatePseudoLegalMoves(const Board& board, Color Side, Move* moves);
+int generatePseudoLegalMoves(const Board& board, Color Side, u32* moves);
 

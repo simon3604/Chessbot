@@ -9,6 +9,7 @@
 
 
 using u64 = uint64_t;
+using u32 = uint32_t;
 
 
 inline int lsb(u64 bb) { return __builtin_ctzll(bb); }
@@ -17,25 +18,15 @@ inline int msb(u64 bb) { return 63 - __builtin_clzll(bb); }
 inline int popcount(u64 x) { return __builtin_popcountll(x); }
 
 
-inline Move mkMove(int from, int to, int from2, int to2, Piece piece, Piece captured, Piece promotion, uint8_t flags)
+inline u32 mkMove(int from, int to, Piece promotion, uint8_t flags)
 {
-    Move m;
-    m.from = from;
-    m.to = to;
-    m.from2 = from2;
-    m.to2 = to2;
-    m.piece = piece;
-    m.captured = captured;
-    m.promotion = promotion;
-    m.flags = flags;
-
-    if (piece == NONE) {
-        std::cout << "ERROR: mkMove created NONE piece!\n";
-        std::cout << "from=" << from << " to=" << to << "\n";
-        std::cout << "flags=" << (int)flags << "\n";
-        exit(1);
-    }
-    return m;
+    u32 move = 0;
+    move |= (from & 0x3F);
+    move |= ((to & 0x3F) << 6);
+    move |= ((promotion) & 0xF) << 12;
+    move |= ((flags & 0xF) << 16);
+    
+    return move;
 }
 
 u64 setOccupancy(int index, int bits, u64 mask) {
@@ -261,7 +252,7 @@ inline u64 getQueenAttackMagics(int sq, u64 occ) { return getRookAttackMagics(sq
 
 
 
-int generatePawnMoves(const Board& board, Color side, Move* moves)
+int generatePawnMoves(const Board& board, Color side, u32* moves)
 {
     u64 pawns = (side == WHITE) ? board.pieces[WP] : board.pieces[BP];
     u64 empty = ~board.all;
@@ -282,14 +273,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WQ, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WR, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WB, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, WN, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WR, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WQ, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WB, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WN, PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, NONE, QUIET);
+                moves[count++] = mkMove(fromSq, toSq, NONE, QUIET);
             }
         }
 
@@ -303,7 +294,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             int fromSq = toSq - 16;
 
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, NONE, NONE, QUIET);
+            moves[count++] = mkMove(fromSq, toSq, NONE, QUIET);
         }
 
         // === Captures left ===
@@ -319,14 +310,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
 
@@ -343,14 +334,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_8)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WQ, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WR, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WB, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), WN, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, WN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, getPieceType(board, toSq), NONE, CAPTURE);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
 
@@ -371,7 +362,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
                     int fromSq = toSq - 7;
 
-                    moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
+                    moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
                 }
 
                 // right EP (<<9)
@@ -384,7 +375,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
                     int fromSq = toSq - 9;
 
-                    moves[count++] = mkMove(fromSq, toSq, -1, -1, WP, BP, NONE, CAPTURE | ENPASSANT);
+                    moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
                 }
             }
     }
@@ -402,14 +393,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BQ, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BR, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BB, PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, BN, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BQ, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BR, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BB, PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BN, PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, NONE, QUIET);
+                moves[count++] = mkMove(fromSq, toSq, NONE, QUIET);
             }
         }
 
@@ -423,7 +414,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             int fromSq = toSq + 16;
 
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, NONE, NONE, QUIET);
+            moves[count++] = mkMove(fromSq, toSq, NONE, QUIET);
         }
 
         // === Captures left ===
@@ -438,14 +429,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
 
@@ -461,14 +452,14 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
             if ((1ULL << toSq) & RANK_1)
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BQ, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BR, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BB, CAPTURE | PROMOTION);
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), BN, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BQ, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BR, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BB, CAPTURE | PROMOTION);
+                moves[count++] = mkMove(fromSq, toSq, BN, CAPTURE | PROMOTION);
             }
             else
             {
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, getPieceType(board, toSq), NONE, CAPTURE);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE);
             }
         }
 
@@ -488,7 +479,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
                 int fromSq = toSq + 9;
 
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
             }
 
             // right EP (>>7)
@@ -501,7 +492,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
 
                 int fromSq = toSq + 7;
 
-                moves[count++] = mkMove(fromSq, toSq, -1, -1, BP, WP, NONE, CAPTURE | ENPASSANT);
+                moves[count++] = mkMove(fromSq, toSq, NONE, CAPTURE | ENPASSANT);
             }
         }
     }
@@ -513,7 +504,7 @@ int generatePawnMoves(const Board& board, Color side, Move* moves)
     return count;
 }
 
-int generateKnightMoves(const Board& board, Color Side, Move* moves) {
+int generateKnightMoves(const Board& board, Color Side, u32* moves) {
 
     u64 knights = (Side == WHITE) ? board.pieces[WN] : board.pieces[BN];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
@@ -539,7 +530,8 @@ int generateKnightMoves(const Board& board, Color Side, Move* moves) {
             } else {
                 captured = NONE;
             }
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WN : BN, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+          
+            moves[count++] = mkMove(fromSq, toSq, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
     if (count >= 256) {
@@ -550,7 +542,7 @@ int generateKnightMoves(const Board& board, Color Side, Move* moves) {
     return count;
 };
 
-int generateRookMoves(const Board& board, Color Side, Move* moves) {
+int generateRookMoves(const Board& board, Color Side, u32* moves) {
     u64 rooks = (Side == WHITE) ? board.pieces[WR] : board.pieces[BR];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -576,7 +568,7 @@ int generateRookMoves(const Board& board, Color Side, Move* moves) {
             } else {
                 captured = NONE;
             }
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WR : BR, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+            moves[count++] = mkMove(fromSq, toSq, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
     if (count >= 256) {
@@ -587,7 +579,7 @@ int generateRookMoves(const Board& board, Color Side, Move* moves) {
     return count;
 };
 
-int generateBishopMoves(const Board &board, Color Side, Move* moves)
+int generateBishopMoves(const Board &board, Color Side, u32* moves)
 {
     u64 bishops = (Side == WHITE) ? board.pieces[WB] : board.pieces[BB];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
@@ -614,7 +606,7 @@ int generateBishopMoves(const Board &board, Color Side, Move* moves)
             } else {
                 captured = NONE;
             }
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WB : BB, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+            moves[count++] = mkMove(fromSq, toSq, NONE, (captured == NONE) ? QUIET : CAPTURE);
         }
     }
     if (count >= 256) {
@@ -625,7 +617,7 @@ int generateBishopMoves(const Board &board, Color Side, Move* moves)
     return count;
 }
 
-int generateQueenMoves(const Board& board, Color Side, Move* moves) {
+int generateQueenMoves(const Board& board, Color Side, u32* moves) {
     u64 queens = (Side == WHITE) ? board.pieces[WQ] : board.pieces[BQ];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -651,7 +643,7 @@ int generateQueenMoves(const Board& board, Color Side, Move* moves) {
             } else {
                 captured = NONE;
             }
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WQ : BQ, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+            moves[count++] = mkMove(fromSq, toSq, NONE, (captured == NONE) ? QUIET : CAPTURE);
 
             
         }
@@ -664,7 +656,7 @@ int generateQueenMoves(const Board& board, Color Side, Move* moves) {
     return count;
 }
 
-int generateKingMoves(const Board& board, Color Side, Move* moves) {
+int generateKingMoves(const Board& board, Color Side, u32* moves) {
     u64 king = (Side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     u64 ownPieces = (Side == WHITE) ? board.all_white : board.all_black;
     u64 oppPieces = (Side == WHITE) ? board.all_black : board.all_white;
@@ -690,7 +682,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
             } else {
                 captured = NONE;
             }
-            moves[count++] = mkMove(fromSq, toSq, -1, -1, (Side == WHITE) ? WK : BK, captured, NONE, (captured == NONE) ? QUIET : CAPTURE);
+            moves[count++] = mkMove(fromSq, toSq, NONE, (captured == NONE) ? QUIET : CAPTURE);
 
             
         }
@@ -703,7 +695,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
                 !isSquareAttacked(board, WHITE, 5) &&       // f1 not attacked
                 !isSquareAttacked(board, WHITE, 6))         // g1 not attacked
             {
-                moves[count++] = mkMove(4, 6, 7, 5, WK, NONE, NONE, CASTLING);
+                moves[count++] = mkMove(4, 6, NONE, CASTLING);
             }
         }
 
@@ -715,7 +707,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
                 !isSquareAttacked(board, WHITE, 3) &&
                 !isSquareAttacked(board, WHITE, 2))
             {
-                moves[count++] = mkMove(4, 2, 0, 3, WK, NONE, NONE, CASTLING);
+                moves[count++] = mkMove(4, 2, NONE, CASTLING);
             }
         }
 
@@ -727,7 +719,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
                 !isSquareAttacked(board, BLACK, 61) &&
                 !isSquareAttacked(board, BLACK, 62))
             {
-                moves[count++] = mkMove(60, 62, 63, 61, BK, NONE, NONE, CASTLING);
+                moves[count++] = mkMove(60, 62, NONE, CASTLING);
             }
         }
 
@@ -739,7 +731,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
                 !isSquareAttacked(board, BLACK, 59) &&
                 !isSquareAttacked(board, BLACK, 58))
             {
-                moves[count++] = mkMove(60, 58, 56, 59, BK, NONE, NONE, CASTLING);
+                moves[count++] = mkMove(60, 58, NONE, CASTLING);
             }
         }
     }
@@ -752,7 +744,7 @@ int generateKingMoves(const Board& board, Color Side, Move* moves) {
     
 };
 
-int generatePseudoLegalMoves(const Board& board, Color Side, Move* moves) {
+int generatePseudoLegalMoves(const Board& board, Color Side, u32* moves) {
     
     int count = 0;
     

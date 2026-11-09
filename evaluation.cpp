@@ -19,7 +19,7 @@ using u64 = uint64_t;
 
 int kingSafety(const Board& board, Color side) {
     Color oppSide = (side == WHITE) ? BLACK : WHITE;
-    u64 kingBB = (side == WHITE) ? WK : BK;
+    u64 kingBB = (side == WHITE) ? board.pieces[WK] : board.pieces[BK];
     int kingSq = lsb(kingBB);
 
     int score = 0;
