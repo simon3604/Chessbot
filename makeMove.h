@@ -16,6 +16,17 @@
 using u64 = uint64_t;
 using u32 = uint32_t;
 
+inline bool occupanciesAreConsistent(const Board &board)
+{
+    const u64 white = board.pieces[WP] | board.pieces[WN] | board.pieces[WB] |
+                      board.pieces[WR] | board.pieces[WQ] | board.pieces[WK];
+    const u64 black = board.pieces[BP] | board.pieces[BN] | board.pieces[BB] |
+                      board.pieces[BR] | board.pieces[BQ] | board.pieces[BK];
+
+    return white == board.all_white && black == board.all_black &&
+           board.all == (white | black) && !(white & black);
+}
+
 inline void undoMove(const u32 &m, Board &board, const Undo &u, std::string debug)
 {
 
@@ -41,7 +52,7 @@ inline void undoMove(const u32 &m, Board &board, const Undo &u, std::string debu
 
     if (moveFlags(m) & CASTLING)
     {
-        u64 rookMask = (1ULL << getRookFromSquare(m, c)) | (1ULL << getRookToSquare(m, c));
+        u64 rookMask = (1ULL << getRookFromSquare(m, c, "undoMove")) | (1ULL << getRookToSquare(m, c, "undoMove"));
         Piece rook = (c == WHITE) ? WR : BR;
 
         board.pieces[rook] ^= rookMask;
@@ -124,23 +135,19 @@ inline void undoMove(const u32 &m, Board &board, const Undo &u, std::string debu
         }
     }
 
-    const u64 recomputed =
-        board.pieces[WP] | board.pieces[WN] | board.pieces[WB] |
-        board.pieces[WR] | board.pieces[WQ] | board.pieces[WK] |
-        board.pieces[BP] | board.pieces[BN] | board.pieces[BB] |
-        board.pieces[BR] | board.pieces[BQ] | board.pieces[BK];
-
-    if (recomputed != board.all)
+    if (!occupanciesAreConsistent(board))
     {
-        std::cout << "Undo: board.all BROKEN\n";
+        std::cout << "Undo: board occupancies BROKEN\n";
         printMove(board, m);
         std::cout << "Debug info: " << debug << std::endl;
-        std::cout << "Recomputed: " << std::endl;
-        print_bitboard(recomputed);
+        std::cout << "White occupancy: " << std::endl;
+        print_bitboard(board.all_white);
+        std::cout << "Black occupancy: " << std::endl;
+        print_bitboard(board.all_black);
         printBoardAsLetters(board, false);
         printBoard(board);
         exit(1);
-    }
+    }   
 }
 
 inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
@@ -149,9 +156,17 @@ inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
 
     Piece target = getPieceType(board, toSquare(m));
 
-    if (target != NONE && moveFlags(m) & QUIET)
+    if (target != NONE && !(moveFlags(m) & (CAPTURE | ENPASSANT)))
     {
         std::cout << "❌ ILLEGAL NON-CAPTURE ON OCCUPIED SQUARE\n";
+        std::cout << "Called from: " << calledFrom << std::endl;
+        printMove(board, m);
+        exit(1);
+    }
+
+    if ((moveFlags(m) & CAPTURE) && !(moveFlags(m) & ENPASSANT) && target == NONE)
+    {
+        std::cout << "❌ ILLEGAL CAPTURE ON EMPTY SQUARE\n";
         std::cout << "Called from: " << calledFrom << std::endl;
         printMove(board, m);
         exit(1);
@@ -164,9 +179,10 @@ inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
         std::cout << "❌ ILLEGAL MOVE: WRONG SIDE TO MOVE\n";
         std::cout << "Called from: " << calledFrom << std::endl;
         printMove(board, m);
+        exit(1);
     }
 
-    else if (board.pieces[target] & ((board.sideToMove == WHITE) ? board.all_white : board.all_black))
+    if (target != NONE && (board.pieces[target] & ((board.sideToMove == WHITE) ? board.all_white : board.all_black)))
     {
         std::cout << "❌ ILLEGAL MOVE: CAPTURE OWN PIECE\n";
         std::cout << "Called from: " << calledFrom << std::endl;
@@ -174,6 +190,7 @@ inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
         std::cout << "Side to move: " << ((board.sideToMove == WHITE) ? "WHITE" : "BLACK") << std::endl;
         std::cout << "Target piece: " << numToPiece(target) << std::endl;
         printBoardAsLetters(board, false);
+        exit(1);
     }
 
     // 1. Save state
@@ -281,8 +298,8 @@ inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
     if (moveFlags(m) & CASTLING)
     {
 
-        int rookFrom = getRookFromSquare(m, c);
-        int rookTo = getRookToSquare(m, c);
+        int rookFrom = getRookFromSquare(m, c, "makeMove");
+        int rookTo = getRookToSquare(m, c, "makeMove");
         Piece rook = (c == WHITE) ? WR : BR;
 
         board.pieces[rook] ^= (1ULL << rookFrom) | (1ULL << rookTo);
@@ -379,6 +396,19 @@ inline Undo makeMove(u32 m, Board &board, std::string calledFrom)
 
     board.eval += score;
 
+    if (!occupanciesAreConsistent(board))
+    {
+        std::cout << "Make: board occupancies BROKEN\n";
+        printMove(board, m);
+        std::cout << "Called from: " << calledFrom << std::endl;
+        std::cout << "White occupancy: " << std::endl;
+        print_bitboard(board.all_white);
+        std::cout << "Black occupancy: " << std::endl;
+        print_bitboard(board.all_black);
+        printBoardAsLetters(board, false);
+        printBoard(board);
+        exit(1);
+    }
 
     return u;
 }
