@@ -47,7 +47,6 @@ int quiescence(Board &board, int alpha, int beta, Color side, int ply)
     for (int i = 0; i < moveCount; i++)
     {
 
-        Board before = board;
         Undo u = makeMove(moves[i], board, "quiescence");
 
         if (isKingInCheck(side, board, "quiescence"))
@@ -146,7 +145,6 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
         }
     }
 
-    u32 *moves = moveStack[ply];
 
     Color oppSide = (side == WHITE ? BLACK : WHITE);
     int value = -10000000;
@@ -229,7 +227,7 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
         {
 
             // killer moves
-            if (moveFlags(m) != CAPTURE)
+            if (moveFlags(m) == QUIET)
             {
                 killerMoves[ply][1] = killerMoves[ply][0];
                 killerMoves[ply][0] = m;
@@ -315,7 +313,6 @@ u32 findBestMove(Board &board, int depth, int time, std::chrono::steady_clock::t
     std::cerr << "Pseudolegal moves: " << moveCount << std::endl;
 
     u32 bestMove;
-    u32 currentBestMove;
 
     int bestScore = -10000000;
 
@@ -353,7 +350,6 @@ u32 findBestMove(Board &board, int depth, int time, std::chrono::steady_clock::t
         }
         std::cerr << numToPos(fromSquare(m)) << numToPos(toSquare(m)) << std::endl;
         Color expectedSide = side;
-        Board before = board;
         Undo u = makeMove(copy, board, "findbest");
         if (isKingInCheck(expectedSide, board, "findbestmove"))
         {

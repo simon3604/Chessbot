@@ -9,5 +9,6 @@ Install the Microsoft C/C++ VS Code extension and the MSYS2 UCRT64 toolchain
 - Press **Ctrl+Shift+B** to build the debug executable.
 - Open **Run and Debug** and select **Debug Chessbot**. The debugger builds
   the executable before launching it in VS Code's integrated terminal.
-- Enter engine commands in the terminal, such as `uci` and `isready`; enter
-  `quit` to exit.
+- Enter engine commands in the terminal, the engine uses uci protocol with some extra features.
+- All commands can be seen with `help`.
+    
