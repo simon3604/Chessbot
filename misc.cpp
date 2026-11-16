@@ -354,15 +354,17 @@ u32 parseUCIMove(const std::string& moveStr, Board& board) {
     }
 
     // Convert UCI notation (e.g. "e2e4") into 0–63 square indices
-    int fromFile = moveStr[0] - 'a';   // 'a' → 0, 'b' → 1, ...
-    int fromRank = moveStr[1] - '1';   // '1' → 0, '2' → 1, ...
+    int fromFile = moveStr[0] - 'a';  
+    int fromRank = moveStr[1] - '1';  
     int toFile   = moveStr[2] - 'a';
     int toRank   = moveStr[3] - '1';
 
     int from = fromRank * 8 + fromFile;
     int to   = toRank * 8 + toFile;
 
-    // Handle optional promotion piece (e.g. "q", "r", "b", "n")
+    Piece p = getPieceType(board, from);
+
+    // Handle promotion pieces
     Piece promotion = NONE;
     if (moveStr.size() == 5) {
     
@@ -397,22 +399,35 @@ u32 parseUCIMove(const std::string& moveStr, Board& board) {
 
     //castling
 
-    int from2 = getRookFromSquare(mkMove(from, to, promotion, 0), board.sideToMove);
-    int to2 = getRookToSquare(mkMove(from, to, promotion, 0), board.sideToMove);
+    int from2 = getRookFromSquare(mkMove(from, to, promotion, 0), board.sideToMove, "parseUCIMove");
+    int to2 = getRookToSquare(mkMove(from, to, promotion, 0), board.sideToMove, "parseUCIMove");
 
     //flags
     uint8_t flags = QUIET;
     if (from2 != -1 && to2 != -1) {
         flags |= CASTLING;
-    } else if (promotion != NONE) {
+    } 
+    if (promotion != NONE) {
         flags |= PROMOTION;
-    } else if (captured != NONE) {
+    } 
+    if (captured != NONE) {
         flags |= CAPTURE;
-    } else if (to == board.enPassantSquare) {
+    } 
+    if (to == board.enPassantSquare) {
         flags |= ENPASSANT;
     }
 
-    
+    // New EP-square
+    if (p == WP || p == BP) {
+        if (abs(to - from) == 16) {
+            board.enPassantSquare = (board.sideToMove == WHITE) ? from + 8 : from - 8;
+        } else {
+            board.enPassantSquare = -1;
+        }
+    }
+    else {
+        board.enPassantSquare = -1;
+    }
 
     // Construct the Move
     u32 move = mkMove(from, to, promotion, flags);
@@ -747,7 +762,7 @@ void printKillers(const Board& board, const u32 killers[2]) {
     std::cout << std::endl;
 }
 
-int getRookFromSquare(u32 m, Color side) {
+int getRookFromSquare(u32 m, Color side, const std::string& debug) {
     if (side == WHITE) {
         if (fromSquare(m) == 4 && toSquare(m) == 6) return 7; // kingside
         if (fromSquare(m) == 4 && toSquare(m) == 2) return 0; // queenside
@@ -756,11 +771,11 @@ int getRookFromSquare(u32 m, Color side) {
         if (fromSquare(m) == 60 && toSquare(m) == 58) return 56; // queenside
     }
 
-    std::cerr << "getRookFromSquare: Not a rook square for castling" << std::endl;
+    std::cerr << "getRookFromSquare: Not a rook square for castling: " << debug << std::endl;
     return -1; // Not a rook square for castling
 }
 
-int getRookToSquare(u32 m, Color side) {
+int getRookToSquare(u32 m, Color side, const std::string& debug) {
     if (side == WHITE) {
         if (fromSquare(m) == 4 && toSquare(m) == 6) return 5; // kingside
         if (fromSquare(m) == 4 && toSquare(m) == 2) return 3; // queenside
@@ -769,7 +784,7 @@ int getRookToSquare(u32 m, Color side) {
         if (fromSquare(m) == 60 && toSquare(m) == 58) return 59; // queenside
     }
 
-    std::cerr << "getRookToSquare: Not a rook square for castling" << std::endl;
+    std::cerr << "getRookToSquare: Not a rook square for castling: " << debug << std::endl;
     return -1; // Not a rook square for castling
 }
 

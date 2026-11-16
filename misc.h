@@ -42,8 +42,8 @@ void printMove(const Board& board, u32 m);
 
 void printKillers(const Board& board, const u32 killers[2]);
 
-int getRookFromSquare(u32 m, Color side);
-int getRookToSquare(u32 m, Color side);
+int getRookFromSquare(u32 m, Color side, const std::string& debug);
+int getRookToSquare(u32 m, Color side, const std::string& debug);
 
 std::string printBoardAsLetters(const Board& board, bool forLog);
 
