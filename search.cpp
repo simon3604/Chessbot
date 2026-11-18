@@ -6,7 +6,6 @@
 #include <bits/stdc++.h>
 #include <chrono>
 #include <atomic>
-#include <cassert>
 #include "moveGen.h"
 #include "evaluation.h"
 #include "search.h"
@@ -29,11 +28,76 @@ struct TTEntry
 
 TTEntry tt[TT_SIZE];
 
-int quiescence(Board &board, int alpha, int beta, Color side, int ply)
+int scoreFromTT(int score, int ply)
+{
+    if (score > MATE - MAX_PLY)
+        return score - ply;
+
+    if (score < -MATE + MAX_PLY)
+        return score + ply;
+
+    return score;
+}
+
+int quiescence(Board &board, int alpha, int beta, Color side, int ply, int time, std::chrono::steady_clock::time_point start_time)
 {
 
     nodes++;
 
+    if ((nodes & 1023) == 0)
+    {
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed >= std::chrono::milliseconds(time))
+        {
+            stopSearch = true;
+            return alpha;
+        }
+    }
+
+    
+
+    u32 *moves = moveStack[ply];
+
+    bool inCheck = isKingInCheck(side, board, "quiescence");
+
+    if (inCheck)
+    {
+        int moveCount = generatePseudoLegalMoves(board, side, moves);
+        int legalMoves = 0;
+
+        for (int i = 0; i < moveCount; i++)
+        {
+            Undo u = makeMove(moves[i], board, "quiescence");
+
+            if (isKingInCheck(side, board, "quiescence"))
+            {
+                undoMove(moves[i], board, u, "quiescence");
+                continue;
+            }
+
+            legalMoves++;
+
+            int score = -quiescence(
+                board, -beta, -alpha,
+                (side == WHITE) ? BLACK : WHITE,
+                ply + 1, time, start_time);
+
+            undoMove(moves[i], board, u, "quiescence");
+
+            if (score >= beta)
+                return beta;
+
+            alpha = std::max(alpha, score);
+        }
+
+        if (legalMoves == 0)
+            return -MATE + ply;
+
+        return alpha;
+    }
+    
+    if (ply >= MAX_PLY - 1)
+            return evaluate(board, side);
     int stand_pat = evaluate(board, side);
 
     if (stand_pat >= beta)
@@ -41,7 +105,6 @@ int quiescence(Board &board, int alpha, int beta, Color side, int ply)
     if (stand_pat > alpha)
         alpha = stand_pat;
 
-    u32 *moves = moveStack[ply];
     int moveCount = generateCaptures(board, side, moves, "quiescence");
 
     for (int i = 0; i < moveCount; i++)
@@ -52,7 +115,7 @@ int quiescence(Board &board, int alpha, int beta, Color side, int ply)
         if (isKingInCheck(side, board, "quiescence"))
         {
             undoMove(moves[i], board, u, "quiescence");
-            
+
             continue;
         }
 
@@ -60,7 +123,7 @@ int quiescence(Board &board, int alpha, int beta, Color side, int ply)
             board,
             -beta,
             -alpha,
-            (side == WHITE) ? BLACK : WHITE, ply + 1);
+            (side == WHITE) ? BLACK : WHITE, ply + 1, time, start_time);
 
         undoMove(moves[i], board, u, "quiescence");
 
@@ -102,30 +165,29 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
 
     TTEntry &entry = tt[index];
 
+    int TTScore = scoreFromTT(entry.score, ply);
+
     if (depth == 0)
     {
         if (entry.key == hash && entry.depth >= depth)
         {
-            return entry.score;
+            return TTScore;
         }
-        return quiescence(board, alpha, beta, side, ply);
+        return quiescence(board, alpha, beta, side, ply, time, start_time);
     }
     u32 bestMove;
 
     if (entry.key == hash && entry.depth >= depth)
     {
+
         if (entry.flag == EXACT)
-        {
-            return entry.score;
-        }
-        if (entry.flag == LOWERBOUND && entry.score >= beta)
-        {
-            return entry.score;
-        }
-        if (entry.flag == UPPERBOUND && entry.score <= alpha)
-        {
-            return entry.score;
-        }
+            return TTScore;
+
+        if (entry.flag == LOWERBOUND && TTScore >= beta)
+            return TTScore;
+
+        if (entry.flag == UPPERBOUND && TTScore <= alpha)
+            return TTScore;
     }
 
     // Null Move Pruning
@@ -134,7 +196,6 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
         Undo u = make_null_move(board);
 
         int R = 2 + depth / 4; // reduction
-        GoParams go = {};
         int score = -alphaBeta(board, depth - 1 - R, -beta, -beta + 1, (side == WHITE) ? BLACK : WHITE, ply + 1, time, start_time, false);
 
         undo_null_move(board, u);
@@ -144,7 +205,6 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
             return beta;
         }
     }
-
 
     Color oppSide = (side == WHITE ? BLACK : WHITE);
     int value = -10000000;
@@ -188,10 +248,14 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
                 reduction = 2;
         }
 
-        Color expectedSide = side;
-
         // Board before = board;
         Undo u = makeMove(copy, board, "ab");
+
+        if (isKingInCheck(side, board, "alphaBeta"))
+        {
+            undoMove(copy, board, u, "ab");
+            continue;
+        }
 
         int score;
 
@@ -255,37 +319,26 @@ int alphaBeta(Board &board, int depth, int alpha, int beta, Color side, int ply,
 
     int storeScore = value;
 
-    if (value > MATE - 1)
+    if (value > MATE - MAX_PLY)
         storeScore += ply;
-    if (value < -MATE + 1)
+    if (value < -MATE + MAX_PLY)
         storeScore -= ply;
 
+    TTFlag newFlag;
+
     if (value <= alphaOriginal)
-    {
-        entry.flag = UPPERBOUND;
-    }
+        newFlag = UPPERBOUND;
     else if (value >= betaOriginal)
-    {
-        entry.flag = LOWERBOUND;
-    }
+        newFlag = LOWERBOUND;
     else
-    {
-        entry.flag = EXACT;
-    }
+        newFlag = EXACT;
 
     if (entry.key != hash || depth >= entry.depth)
     {
         entry.key = hash;
         entry.depth = depth;
         entry.score = storeScore;
-
-        if (value <= alphaOriginal)
-            entry.flag = UPPERBOUND;
-        else if (value >= betaOriginal)
-            entry.flag = LOWERBOUND;
-        else
-            entry.flag = EXACT;
-
+        entry.flag = newFlag;
         entry.bestMove = bestMove;
     }
 
@@ -354,7 +407,7 @@ u32 findBestMove(Board &board, int depth, int time, std::chrono::steady_clock::t
         if (isKingInCheck(expectedSide, board, "findbestmove"))
         {
             undoMove(copy, board, u, "findbest");
-          
+
             continue;
         }
 
@@ -362,10 +415,8 @@ u32 findBestMove(Board &board, int depth, int time, std::chrono::steady_clock::t
                                (side == WHITE) ? BLACK : WHITE, 1, time, start_time, true);
 
         undoMove(copy, board, u, "findbest");
-        
 
         alpha = std::max(alpha, score);
-
 
         if (!found || score > bestScore)
         {
@@ -427,7 +478,7 @@ u32 search(Board &board, GoParams go)
 
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
     int maxDepth = 15;
-    if (go.depth != -1 || go.depth > 0)
+    if (go.depth > 0)
     {
         std::cerr << "depth" << go.depth;
         maxDepth = go.depth;
@@ -435,7 +486,6 @@ u32 search(Board &board, GoParams go)
 
     for (int depth = 1; depth <= maxDepth; depth++)
     {
-        auto start_time = std::chrono::steady_clock::now();
         u32 move = findBestMove(board, depth, timeToMove, start_time);
         std::cerr << "Depth " << depth << " searched" << std::endl;
         printBoardAsLetters(board, false);
